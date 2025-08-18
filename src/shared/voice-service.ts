@@ -9,10 +9,13 @@ export class VoiceService {
   private isSpeaking = false;
   private apiKey: string = '';
   private useOpenAIVoice: boolean = true;
+  private useOpenAIWhisper: boolean = true; // Use Whisper for better accent recognition
   private currentAudio: HTMLAudioElement | null = null;
   private speechTimeout: NodeJS.Timeout | null = null;
   private lastFinalTranscript = '';
   private silenceDelay = 2000; // Wait 2 seconds of silence before considering speech complete
+  private mediaRecorder: MediaRecorder | null = null;
+  private audioChunks: Blob[] = [];
 
   // Event handlers
   private onSpeechResult?: (text: string, isFinal: boolean) => void;
@@ -115,13 +118,25 @@ export class VoiceService {
   }
 
   // Speech Recognition Methods
-  startListening(settings: SpeechRecognitionSettings) {
-    if (!this.recognition) {
-      throw new Error('Speech recognition not supported in this browser');
-    }
-
+  async startListening(settings: SpeechRecognitionSettings) {
     if (this.isListening) {
       this.stopListening();
+    }
+
+    // Use OpenAI Whisper for better accent recognition if API key is available
+    if (this.useOpenAIWhisper && this.apiKey) {
+      try {
+        await this.startWhisperListening(settings);
+        return;
+      } catch (error) {
+        console.warn('Whisper failed, falling back to browser recognition:', error);
+        // Fall back to browser recognition
+      }
+    }
+
+    // Browser speech recognition fallback
+    if (!this.recognition) {
+      throw new Error('Speech recognition not supported in this browser');
     }
 
     // Configure for longer utterances and better conversation flow
@@ -130,13 +145,8 @@ export class VoiceService {
     this.recognition.interimResults = true; // Always show interim results
     this.recognition.maxAlternatives = 1;
     
-    // Extend timeout for longer conversations
-    if ('webkitSpeechRecognition' in window) {
-      (this.recognition as any).serviceURI = 'wss://www.google.com/speech-api/v2/recognize';
-    }
-    
     try {
-      console.log('LeetMentor: Starting speech recognition with settings:', {
+      console.log('LeetMentor: Starting browser speech recognition with settings:', {
         language: this.recognition.lang,
         continuous: this.recognition.continuous,
         interimResults: this.recognition.interimResults
@@ -148,7 +158,92 @@ export class VoiceService {
     }
   }
 
+  private async startWhisperListening(settings: SpeechRecognitionSettings) {
+    console.log('LeetMentor: Starting Whisper speech recognition for better accent support');
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      this.audioChunks = [];
+      this.mediaRecorder = new MediaRecorder(stream);
+      
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data);
+        }
+      };
+
+      this.mediaRecorder.onstop = async () => {
+        try {
+          const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+          const transcription = await this.transcribeWithWhisper(audioBlob, settings.language);
+          
+          if (transcription.trim()) {
+            console.log('LeetMentor: Whisper transcription:', transcription);
+            this.onSpeechResult?.(transcription.trim(), true);
+          }
+        } catch (error) {
+          console.error('Whisper transcription error:', error);
+          this.onSpeechError?.('Transcription failed');
+        }
+        
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      this.mediaRecorder.onstart = () => {
+        this.isListening = true;
+        this.onSpeechStart?.();
+      };
+
+      // Start recording
+      this.mediaRecorder.start();
+      
+      // Auto-stop after 30 seconds to prevent very long recordings
+      setTimeout(() => {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+          this.stopListening();
+        }
+      }, 30000);
+
+    } catch (error) {
+      console.error('Failed to start Whisper recording:', error);
+      throw error;
+    }
+  }
+
+  private async transcribeWithWhisper(audioBlob: Blob, language: string): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.wav');
+    formData.append('model', 'whisper-1');
+    formData.append('language', language.split('-')[0]); // Convert 'en-US' to 'en'
+    formData.append('response_format', 'text');
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Whisper API error: ${response.status}`);
+    }
+
+    return await response.text();
+  }
+
   stopListening() {
+    // Stop MediaRecorder if using Whisper
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      this.mediaRecorder.stop();
+      this.isListening = false;
+      this.onSpeechEnd?.();
+      return;
+    }
+
+    // Stop browser speech recognition
     if (this.recognition && this.isListening) {
       this.recognition.stop();
     }
@@ -285,10 +380,10 @@ export class VoiceService {
   }
 
   private getOpenAIVoice(language: string): string {
-    // Map language to best OpenAI voice
+    // Map language to best OpenAI voice for conversational experience
     const voiceMap: Record<string, string> = {
-      'en-US': 'nova',    // Female, warm
-      'en-GB': 'alloy',   // Neutral  
+      'en-US': 'fable',   // Warm, expressive voice (user preference)
+      'en-GB': 'echo',    // British accent
       'es-ES': 'nova',    // Works well for Spanish
       'fr-FR': 'shimmer', // Good for French
       'de-DE': 'onyx',    // Deep voice for German
@@ -297,7 +392,7 @@ export class VoiceService {
       'ko-KR': 'nova'     // Good for Korean
     };
 
-    return voiceMap[language] || 'nova'; // Default to nova (natural, warm voice)
+    return voiceMap[language] || 'fable'; // Default to fable (user's preferred voice)
   }
 
   stopSpeaking() {
@@ -370,6 +465,10 @@ export class VoiceService {
 
   setUseOpenAIVoice(enabled: boolean) {
     this.useOpenAIVoice = enabled;
+  }
+
+  setUseOpenAIWhisper(enabled: boolean) {
+    this.useOpenAIWhisper = enabled;
   }
 
   // Cleanup

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Code } from 'lucide-react';
 
 interface VoiceControlsProps {
     isListening: boolean;
@@ -8,6 +8,7 @@ interface VoiceControlsProps {
     onStartListening: () => void;
     onStopListening: () => void;
     onStopSpeaking: () => void;
+    onOpenCodeEditor?: () => void;
 }
 
 const VoiceControls: React.FC<VoiceControlsProps> = ({
@@ -16,7 +17,8 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
     isEnabled,
     onStartListening,
     onStopListening,
-    onStopSpeaking
+    onStopSpeaking,
+    onOpenCodeEditor
 }) => {
     // Add keyboard shortcut for push-to-talk (spacebar)
     React.useEffect(() => {
@@ -106,11 +108,22 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
                         </button>
                     )}
 
+                    {/* Code Editor Button */}
+                    {onOpenCodeEditor && (
+                        <button
+                            onClick={onOpenCodeEditor}
+                            className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-md transition-colors shadow-sm"
+                            title="Open code editor"
+                        >
+                            <Code className="w-4 h-4" />
+                        </button>
+                    )}
+
                     {/* Voice Status Indicator */}
-                    <div className="flex items-center space-x-1 px-2 py-1 bg-gray-100 rounded">
-                        <Volume2 className="w-3 h-3 text-gray-500" />
-                        <span className="text-xs text-gray-600">
-                            {isEnabled ? 'AI Voice Active' : 'Voice Disabled'}
+                    <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 rounded">
+                        <Volume2 className="w-3 h-3 text-blue-600" />
+                        <span className="text-xs text-blue-700 font-medium">
+                            {isEnabled ? 'OpenAI Voice + Whisper' : 'Voice Disabled'}
                         </span>
                     </div>
                 </div>
@@ -118,8 +131,8 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
 
             {/* Voice Tips */}
             {isEnabled && !isListening && !isSpeaking && (
-                <div className="mt-2 text-xs text-gray-500 text-center">
-                    💡 Click the microphone or hold <kbd className="bg-gray-100 px-1 rounded text-gray-700">Space</kbd> to talk
+                <div className="mt-2 text-xs text-blue-600 text-center">
+                    🎤 Enhanced accent recognition • Hold <kbd className="bg-blue-100 px-1 rounded text-blue-700">Space</kbd> or click mic to talk
                 </div>
             )}
 

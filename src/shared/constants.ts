@@ -2,7 +2,10 @@ export const EXTENSION_NAME = 'LeetMentor';
 
 export const API_ENDPOINTS = {
   OPENAI_CHAT: 'https://api.openai.com/v1/chat/completions',
-  OPENAI_MODELS: 'https://api.openai.com/v1/models'
+  OPENAI_MODELS: 'https://api.openai.com/v1/models',
+  OPENAI_TTS: 'https://api.openai.com/v1/audio/speech',
+  OPENAI_WHISPER: 'https://api.openai.com/v1/audio/transcriptions',
+  OPENAI_REALTIME: 'wss://api.openai.com/v1/realtime'
 } as const;
 
 export const CHATGPT_MODELS = [

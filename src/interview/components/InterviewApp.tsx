@@ -12,6 +12,7 @@ import ChatInterface from './ChatInterface';
 import VoiceControls from './VoiceControls';
 import InterviewControls from './InterviewControls';
 import LoadingScreen from './LoadingScreen';
+import CodeEditor from './CodeEditor';
 
 interface InterviewState {
     status: 'loading' | 'ready' | 'active' | 'paused' | 'completed' | 'error';
@@ -24,6 +25,9 @@ interface InterviewState {
     isUserSpeaking: boolean;
     currentTranscript: string;
     error: string | null;
+    showCodeEditor: boolean;
+    submittedCode: string | null;
+    codeLanguage: string;
 }
 
 const InterviewApp: React.FC = () => {
@@ -37,7 +41,10 @@ const InterviewApp: React.FC = () => {
         isAiSpeaking: false,
         isUserSpeaking: false,
         currentTranscript: '',
-        error: null
+        error: null,
+        showCodeEditor: false,
+        submittedCode: null,
+        codeLanguage: 'javascript'
     });
 
     const [voiceService] = useState(() => new VoiceService());
@@ -109,9 +116,10 @@ const InterviewApp: React.FC = () => {
             const chatGPT = new ChatGPTService(config.apiKey, config.model);
             setChatService(chatGPT);
 
-            // Configure voice service with OpenAI API key for natural voices
+            // Configure voice service with OpenAI API key for natural voices and better accent recognition
             voiceService.setApiKey(config.apiKey);
             voiceService.setUseOpenAIVoice(true);
+            voiceService.setUseOpenAIWhisper(true); // Use Whisper for better accent support
 
             // Start with welcome message
             const welcomeMessage: InterviewMessage = {
@@ -144,7 +152,10 @@ Description: ${problem.description}`
                 isAiSpeaking: false,
                 isUserSpeaking: false,
                 currentTranscript: '',
-                error: null
+                error: null,
+                showCodeEditor: false,
+                submittedCode: null,
+                codeLanguage: 'javascript'
             });
 
             // Speak welcome message if voice is enabled
@@ -238,7 +249,9 @@ Description: ${problem.description}`
                 chatHistory: [
                     ...updatedChatHistory,
                     { role: 'assistant', content: aiResponse }
-                ]
+                ],
+                // Check if AI is asking for code
+                showCodeEditor: prev.showCodeEditor || shouldShowCodeEditor(aiResponse)
             }));
 
             // Save AI message
@@ -300,11 +313,11 @@ Description: ${problem.description}`
         });
     }, [voiceService, handleUserMessage]);
 
-    const startListening = () => {
+    const startListening = async () => {
         if (!state.config?.speechRecognition.enabled) return;
 
         try {
-            voiceService.startListening(state.config.speechRecognition);
+            await voiceService.startListening(state.config.speechRecognition);
         } catch (error) {
             console.error('Failed to start listening:', error);
             setState(prev => ({
@@ -344,6 +357,119 @@ Description: ${problem.description}`
             stopListening();
             stopSpeaking();
         }
+    };
+
+    // Code Editor Functions
+    const shouldShowCodeEditor = (aiResponse: string): boolean => {
+        const codeKeywords = [
+            'code', 'implement', 'write', 'solution', 'algorithm', 'function',
+            'method', 'class', 'solve', 'programming', 'coding', 'write a',
+            'can you code', 'show me your code', 'implement this', 'write the solution'
+        ];
+
+        const response = aiResponse.toLowerCase();
+        return codeKeywords.some(keyword => response.includes(keyword));
+    };
+
+    const handleCodeSubmission = async (code: string, language: string) => {
+        if (!state.session || !chatService) {
+            console.error('LeetMentor: Missing required data for code submission');
+            return;
+        }
+
+        try {
+            // Update state with submitted code
+            setState(prev => ({
+                ...prev,
+                submittedCode: code,
+                codeLanguage: language,
+                showCodeEditor: false
+            }));
+
+            // Create a code submission message
+            const codeMessage: InterviewMessage = {
+                id: generateId('msg'),
+                timestamp: new Date(),
+                role: 'candidate',
+                content: `**Code Submission (${language}):**\n\`\`\`${language}\n${code}\n\`\`\``,
+                type: 'text'
+            };
+
+            setState(prev => ({
+                ...prev,
+                messages: [...prev.messages, codeMessage]
+            }));
+
+            // Save code message
+            await sendMessage({
+                type: 'SAVE_MESSAGE',
+                data: { sessionId: state.session.id, message: codeMessage }
+            });
+
+            // Get AI review of the code
+            const codeReviewPrompt = `Here's my solution:\n\`\`\`${language}\n${code}\n\`\`\`\n\nPlease review this code and provide feedback.`;
+
+            const updatedChatHistory = [
+                ...state.chatHistory,
+                { role: 'user' as const, content: codeReviewPrompt }
+            ];
+
+            const aiResponse = await chatService.generateInterviewResponse(
+                state.problem,
+                updatedChatHistory,
+                codeReviewPrompt
+            );
+
+            // Add AI review message
+            const reviewMessage: InterviewMessage = {
+                id: generateId('msg'),
+                timestamp: new Date(),
+                role: 'interviewer',
+                content: aiResponse,
+                type: 'text'
+            };
+
+            setState(prev => ({
+                ...prev,
+                messages: [...prev.messages, reviewMessage],
+                chatHistory: [
+                    ...updatedChatHistory,
+                    { role: 'assistant', content: aiResponse }
+                ]
+            }));
+
+            // Save AI review
+            await sendMessage({
+                type: 'SAVE_MESSAGE',
+                data: { sessionId: state.session.id, message: reviewMessage }
+            });
+
+            // Speak the AI review if voice is enabled
+            if (state.config?.voice.enabled && voiceService) {
+                await voiceService.speak(aiResponse, state.config.voice);
+            }
+
+        } catch (error) {
+            console.error('Error submitting code:', error);
+            setState(prev => ({
+                ...prev,
+                error: 'Failed to submit code for review'
+            }));
+        }
+    };
+
+    const closeCodeEditor = () => {
+        setState(prev => ({
+            ...prev,
+            showCodeEditor: false
+        }));
+    };
+
+    const openCodeEditor = () => {
+        setState(prev => ({
+            ...prev,
+            showCodeEditor: true
+        }));
     };
 
     if (state.status === 'loading') {
@@ -404,6 +530,7 @@ Description: ${problem.description}`
                             onStartListening={startListening}
                             onStopListening={stopListening}
                             onStopSpeaking={stopSpeaking}
+                            onOpenCodeEditor={openCodeEditor}
                         />
                     )}
 
@@ -416,6 +543,18 @@ Description: ${problem.description}`
                     />
                 </div>
             </div>
+
+            {/* Code Editor Modal */}
+            {state.showCodeEditor && state.problem && (
+                <CodeEditor
+                    problem={state.problem}
+                    onSubmitCode={handleCodeSubmission}
+                    onClose={closeCodeEditor}
+                    isVisible={state.showCodeEditor}
+                    initialCode={state.submittedCode || ''}
+                    language={state.codeLanguage}
+                />
+            )}
         </div>
     );
 };
