@@ -16,6 +16,7 @@ export class VoiceService {
   private silenceDelay = 2000; // Wait 2 seconds of silence before considering speech complete
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
+  private speechRate: number = 1.0; // Speech speed multiplier (1x, 1.25x, 1.5x, 2x)
 
   // Event handlers
   private onSpeechResult?: (text: string, isFinal: boolean) => void;
@@ -299,7 +300,7 @@ export class VoiceService {
             model: 'tts-1',
             input: text,
             voice: this.getOpenAIVoice(settings.language), // nova, alloy, echo, fable, onyx, shimmer
-            speed: settings.rate || 1.0
+            speed: this.speechRate
           }),
         });
 
@@ -340,7 +341,7 @@ export class VoiceService {
       const utterance = new SpeechSynthesisUtterance(text);
       
       // Configure voice settings
-      utterance.rate = settings.rate || SPEECH_SETTINGS.DEFAULT_RATE;
+      utterance.rate = this.speechRate;
       utterance.pitch = settings.pitch || SPEECH_SETTINGS.DEFAULT_PITCH;
       utterance.volume = settings.volume || SPEECH_SETTINGS.DEFAULT_VOLUME;
       utterance.lang = settings.language;
@@ -382,7 +383,7 @@ export class VoiceService {
   private getOpenAIVoice(language: string): string {
     // Map language to best OpenAI voice for conversational experience
     const voiceMap: Record<string, string> = {
-      'en-US': 'fable',   // Warm, expressive voice (user preference)
+      'en-US': 'nova',    // Female, warm, American voice (closest to "maple")
       'en-GB': 'echo',    // British accent
       'es-ES': 'nova',    // Works well for Spanish
       'fr-FR': 'shimmer', // Good for French
@@ -392,7 +393,7 @@ export class VoiceService {
       'ko-KR': 'nova'     // Good for Korean
     };
 
-    return voiceMap[language] || 'fable'; // Default to fable (user's preferred voice)
+    return voiceMap[language] || 'nova'; // Default to nova (female, American)
   }
 
   stopSpeaking() {
@@ -469,6 +470,16 @@ export class VoiceService {
 
   setUseOpenAIWhisper(enabled: boolean) {
     this.useOpenAIWhisper = enabled;
+  }
+
+  // Speech Rate Control
+  setSpeechRate(rate: number) {
+    // Clamp rate between 0.25 and 4.0 for OpenAI, and 0.1 to 10 for browser
+    this.speechRate = Math.min(Math.max(rate, 0.25), 4.0);
+  }
+
+  getSpeechRate(): number {
+    return this.speechRate;
   }
 
   // Cleanup

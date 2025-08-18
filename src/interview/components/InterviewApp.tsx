@@ -12,7 +12,9 @@ import ChatInterface from './ChatInterface';
 import VoiceControls from './VoiceControls';
 import InterviewControls from './InterviewControls';
 import LoadingScreen from './LoadingScreen';
-import CodeEditor from './CodeEditor';
+import SimpleCodeEditor from './SimpleCodeEditor';
+import ResizablePanel from './ResizablePanel';
+import SplitPanel from './SplitPanel';
 
 interface InterviewState {
     status: 'loading' | 'ready' | 'active' | 'paused' | 'completed' | 'error';
@@ -28,6 +30,7 @@ interface InterviewState {
     showCodeEditor: boolean;
     submittedCode: string | null;
     codeLanguage: string;
+    speechRate: number;
 }
 
 const InterviewApp: React.FC = () => {
@@ -44,7 +47,8 @@ const InterviewApp: React.FC = () => {
         error: null,
         showCodeEditor: false,
         submittedCode: null,
-        codeLanguage: 'javascript'
+        codeLanguage: 'javascript',
+        speechRate: 1.0
     });
 
     const [voiceService] = useState(() => new VoiceService());
@@ -155,7 +159,8 @@ Description: ${problem.description}`
                 error: null,
                 showCodeEditor: false,
                 submittedCode: null,
-                codeLanguage: 'javascript'
+                codeLanguage: 'javascript',
+                speechRate: 1.0
             });
 
             // Speak welcome message if voice is enabled
@@ -359,16 +364,27 @@ Description: ${problem.description}`
         }
     };
 
-    // Code Editor Functions
+    // Code Editor Functions - Only trigger on explicit coding requests
     const shouldShowCodeEditor = (aiResponse: string): boolean => {
-        const codeKeywords = [
-            'code', 'implement', 'write', 'solution', 'algorithm', 'function',
-            'method', 'class', 'solve', 'programming', 'coding', 'write a',
-            'can you code', 'show me your code', 'implement this', 'write the solution'
+        const explicitCodingPhrases = [
+            'can you code',
+            'show me your code',
+            'write the code',
+            'implement this',
+            'write a function',
+            'write a method',
+            'code this up',
+            'let me see your implementation',
+            'go ahead and code',
+            'show me the implementation',
+            'can you implement',
+            'please code',
+            'write your solution',
+            'implement your solution'
         ];
 
         const response = aiResponse.toLowerCase();
-        return codeKeywords.some(keyword => response.includes(keyword));
+        return explicitCodingPhrases.some(phrase => response.includes(phrase));
     };
 
     const handleCodeSubmission = async (code: string, language: string) => {
@@ -472,6 +488,14 @@ Description: ${problem.description}`
         }));
     };
 
+    const handleSpeechRateChange = (rate: number) => {
+        setState(prev => ({
+            ...prev,
+            speechRate: rate
+        }));
+        voiceService.setSpeechRate(rate);
+    };
+
     if (state.status === 'loading') {
         return <LoadingScreen />;
     }
@@ -504,57 +528,87 @@ Description: ${problem.description}`
                 onEnd={endInterview}
             />
 
-            <div className="flex-1 flex">
-                {/* Problem Panel */}
-                <div className="w-1/2 border-r border-gray-200">
+            <div className="flex-1 flex overflow-hidden">
+                {/* Left Panel - Problem Details */}
+                <ResizablePanel
+                    title="Problem Details"
+                    initialWidth={40}
+                    minWidth={25}
+                    maxWidth={60}
+                    className="border-r border-gray-200"
+                >
                     <ProblemPanel problem={state.problem} />
-                </div>
+                </ResizablePanel>
 
-                {/* Chat Interface */}
-                <div className="w-1/2 flex flex-col">
-                    <div className="flex-1">
-                        <ChatInterface
-                            messages={state.messages}
-                            currentTranscript={state.currentTranscript}
-                            isLoading={state.isAiSpeaking}
-                            onSendMessage={handleUserMessage}
-                        />
-                    </div>
+                {/* Right Panel - Chat and Code Editor */}
+                <ResizablePanel
+                    title="Interview Session"
+                    initialWidth={60}
+                    isResizable={false}
+                    canMinimize={false}
+                    className="flex-1"
+                >
+                    <SplitPanel
+                        topTitle="💬 Voice Chat"
+                        bottomTitle="💻 Code Editor"
+                        showBottomPanel={state.showCodeEditor}
+                        initialTopHeight={65}
+                        minTopHeight={30}
+                        maxTopHeight={90}
+                        topPanel={
+                            <div className="h-full flex flex-col">
+                                <div className="flex-1 overflow-hidden">
+                                    <ChatInterface
+                                        messages={state.messages}
+                                        currentTranscript={state.currentTranscript}
+                                        isLoading={state.isAiSpeaking}
+                                        onSendMessage={handleUserMessage}
+                                    />
+                                </div>
 
-                    {/* Voice Controls */}
-                    {state.config?.voice.enabled && (
-                        <VoiceControls
-                            isListening={state.isUserSpeaking}
-                            isSpeaking={state.isAiSpeaking}
-                            isEnabled={state.config.speechRecognition.enabled}
-                            onStartListening={startListening}
-                            onStopListening={stopListening}
-                            onStopSpeaking={stopSpeaking}
-                            onOpenCodeEditor={openCodeEditor}
-                        />
-                    )}
+                                {/* Voice Controls */}
+                                {state.config?.voice.enabled && (
+                                    <VoiceControls
+                                        isListening={state.isUserSpeaking}
+                                        isSpeaking={state.isAiSpeaking}
+                                        isEnabled={state.config.speechRecognition.enabled}
+                                        onStartListening={startListening}
+                                        onStopListening={stopListening}
+                                        onStopSpeaking={stopSpeaking}
+                                        onOpenCodeEditor={openCodeEditor}
+                                        onSpeechRateChange={handleSpeechRateChange}
+                                        currentSpeechRate={state.speechRate}
+                                    />
+                                )}
 
-                    {/* Interview Controls */}
-                    <InterviewControls
-                        status={state.status}
-                        onPause={pauseInterview}
-                        onResume={resumeInterview}
-                        onEnd={endInterview}
+                                {/* Interview Controls */}
+                                <InterviewControls
+                                    status={state.status}
+                                    onPause={pauseInterview}
+                                    onResume={resumeInterview}
+                                    onEnd={endInterview}
+                                />
+                            </div>
+                        }
+                        bottomPanel={
+                            state.showCodeEditor && state.problem ? (
+                                <SimpleCodeEditor
+                                    problem={state.problem}
+                                    onSubmitCode={handleCodeSubmission}
+                                    onClose={closeCodeEditor}
+                                    isVisible={state.showCodeEditor}
+                                    initialCode={state.submittedCode || ''}
+                                    language={state.codeLanguage}
+                                />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-gray-500">
+                                    <p>Click the 💚 code button to start coding</p>
+                                </div>
+                            )
+                        }
                     />
-                </div>
+                </ResizablePanel>
             </div>
-
-            {/* Code Editor Modal */}
-            {state.showCodeEditor && state.problem && (
-                <CodeEditor
-                    problem={state.problem}
-                    onSubmitCode={handleCodeSubmission}
-                    onClose={closeCodeEditor}
-                    isVisible={state.showCodeEditor}
-                    initialCode={state.submittedCode || ''}
-                    language={state.codeLanguage}
-                />
-            )}
         </div>
     );
 };

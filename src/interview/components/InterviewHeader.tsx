@@ -26,7 +26,11 @@ const InterviewHeader: React.FC<InterviewHeaderProps> = ({
         if (!session || status !== 'active') return;
 
         const interval = setInterval(() => {
-            const elapsed = Date.now() - session.startTime.getTime();
+            // Ensure startTime is a Date object
+            const startTime = session.startTime instanceof Date
+                ? session.startTime
+                : new Date(session.startTime);
+            const elapsed = Date.now() - startTime.getTime();
             setElapsedTime(elapsed);
         }, 1000);
 

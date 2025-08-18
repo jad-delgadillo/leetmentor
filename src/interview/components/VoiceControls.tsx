@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Volume2, VolumeX, Code } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Code, Gauge } from 'lucide-react';
 
 interface VoiceControlsProps {
     isListening: boolean;
@@ -9,6 +9,8 @@ interface VoiceControlsProps {
     onStopListening: () => void;
     onStopSpeaking: () => void;
     onOpenCodeEditor?: () => void;
+    onSpeechRateChange?: (rate: number) => void;
+    currentSpeechRate?: number;
 }
 
 const VoiceControls: React.FC<VoiceControlsProps> = ({
@@ -18,7 +20,9 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
     onStartListening,
     onStopListening,
     onStopSpeaking,
-    onOpenCodeEditor
+    onOpenCodeEditor,
+    onSpeechRateChange,
+    currentSpeechRate = 1.0
 }) => {
     // Add keyboard shortcut for push-to-talk (spacebar)
     React.useEffect(() => {
@@ -117,6 +121,26 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
                         >
                             <Code className="w-4 h-4" />
                         </button>
+                    )}
+
+                    {/* Speech Rate Control */}
+                    {onSpeechRateChange && (
+                        <div className="flex items-center space-x-1 bg-gray-100 rounded-md p-1">
+                            <Gauge className="w-3 h-3 text-gray-600" />
+                            {[1.0, 1.25, 1.5, 2.0].map(rate => (
+                                <button
+                                    key={rate}
+                                    onClick={() => onSpeechRateChange(rate)}
+                                    className={`px-2 py-1 text-xs rounded transition-colors ${Math.abs(currentSpeechRate - rate) < 0.01
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-transparent text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                    title={`Speech speed ${rate}x`}
+                                >
+                                    {rate}x
+                                </button>
+                            ))}
+                        </div>
                     )}
 
                     {/* Voice Status Indicator */}
