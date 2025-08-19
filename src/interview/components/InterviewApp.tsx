@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LeetCodeProblem, InterviewSession, InterviewMessage } from '../../types/leetcode';
 import { ExtensionConfig, ChatGPTMessage } from '../../types/api';
 import { VoiceService } from '../../shared/voice-service';
+import { RealtimeVoiceService } from '../../shared/realtime-voice-service';
 import { ChatGPTService } from '../../shared/chatgpt-service';
 import { generateId, sendMessage } from '../../shared/utils';
 import { INTERVIEW_PROMPTS } from '../../shared/constants';
@@ -31,6 +32,7 @@ interface InterviewState {
     submittedCode: string | null;
     codeLanguage: string;
     speechRate: number;
+    useRealtimeAPI: boolean;
 }
 
 const InterviewApp: React.FC = () => {
@@ -48,10 +50,12 @@ const InterviewApp: React.FC = () => {
         showCodeEditor: false,
         submittedCode: null,
         codeLanguage: 'javascript',
-        speechRate: 1.0
+        speechRate: 1.0,
+        useRealtimeAPI: false // Default to traditional voice (Realtime API requires server setup)
     });
 
     const [voiceService] = useState(() => new VoiceService());
+    const [realtimeService] = useState(() => new RealtimeVoiceService());
     const [chatService, setChatService] = useState<ChatGPTService | null>(null);
 
     // Initialize the interview session
@@ -59,6 +63,7 @@ const InterviewApp: React.FC = () => {
         initializeInterview();
         return () => {
             voiceService.destroy();
+            realtimeService.disconnect();
         };
     }, []);
 
@@ -125,6 +130,57 @@ const InterviewApp: React.FC = () => {
             voiceService.setUseOpenAIVoice(true);
             voiceService.setUseOpenAIWhisper(true); // Use Whisper for better accent support
 
+            // Configure Realtime Voice Service for ChatGPT-level experience
+            realtimeService.setApiKey(config.apiKey);
+            realtimeService.setEventHandlers({
+                onSpeechResult: (text: string, isFinal: boolean) => {
+                    console.log('LeetMentor Realtime: Speech result:', text, 'Final:', isFinal);
+                    setState(prev => ({
+                        ...prev,
+                        currentTranscript: isFinal ? '' : text
+                    }));
+
+                    if (isFinal && text.trim()) {
+                        handleUserMessage(text.trim());
+                    }
+                },
+                onSpeechStart: () => {
+                    console.log('LeetMentor Realtime: User started speaking');
+                    setState(prev => ({
+                        ...prev,
+                        isUserSpeaking: true
+                    }));
+                },
+                onSpeechEnd: () => {
+                    console.log('LeetMentor Realtime: User stopped speaking');
+                    setState(prev => ({
+                        ...prev,
+                        isUserSpeaking: false
+                    }));
+                },
+                onSpeakStart: () => {
+                    console.log('LeetMentor Realtime: AI started speaking');
+                    setState(prev => ({
+                        ...prev,
+                        isAiSpeaking: true
+                    }));
+                },
+                onSpeakEnd: () => {
+                    console.log('LeetMentor Realtime: AI stopped speaking');
+                    setState(prev => ({
+                        ...prev,
+                        isAiSpeaking: false
+                    }));
+                },
+                onSpeechError: (error: string) => {
+                    console.error('LeetMentor Realtime: Speech error:', error);
+                    setState(prev => ({
+                        ...prev,
+                        error: `Voice error: ${error}`
+                    }));
+                }
+            });
+
             // Start with welcome message
             const welcomeMessage: InterviewMessage = {
                 id: generateId('msg'),
@@ -160,7 +216,8 @@ Description: ${problem.description}`
                 showCodeEditor: false,
                 submittedCode: null,
                 codeLanguage: 'javascript',
-                speechRate: 1.0
+                speechRate: 1.0,
+                useRealtimeAPI: false
             });
 
             // Speak welcome message if voice is enabled
@@ -196,13 +253,19 @@ Description: ${problem.description}`
             configApiKey: state.config?.apiKey ? 'present' : 'missing'
         });
 
-        if (!state.session || !state.problem || !state.config || !chatService) {
+        if (!state.session || !state.problem || !state.config) {
             console.log('LeetMentor: Missing required data for handleUserMessage:', {
                 session: !!state.session,
                 problem: !!state.problem,
                 config: !!state.config,
                 chatService: !!chatService
             });
+            return;
+        }
+
+        // For traditional voice mode, we need ChatGPT service
+        if (!state.useRealtimeAPI && !chatService) {
+            console.log('LeetMentor: Missing ChatGPT service for traditional mode');
             return;
         }
 
@@ -227,47 +290,53 @@ Description: ${problem.description}`
                 data: { sessionId: state.session.id, message: userMessage }
             });
 
-            // Get AI response
-            const updatedChatHistory = [
-                ...state.chatHistory,
-                { role: 'user' as const, content }
-            ];
+            if (state.useRealtimeAPI) {
+                // With Realtime API, just send the message - it handles the conversation
+                realtimeService.sendTextMessage(content);
+                console.log('LeetMentor: Sent message to Realtime API');
+            } else {
+                // Traditional flow with ChatGPT service
+                const updatedChatHistory = [
+                    ...state.chatHistory,
+                    { role: 'user' as const, content }
+                ];
 
-            const aiResponse = await chatService.generateInterviewResponse(
-                state.problem,
-                updatedChatHistory,
-                content
-            );
+                const aiResponse = await chatService.generateInterviewResponse(
+                    state.problem,
+                    updatedChatHistory,
+                    content
+                );
 
-            // Add AI message
-            const aiMessage: InterviewMessage = {
-                id: generateId('msg'),
-                timestamp: new Date(),
-                role: 'interviewer',
-                content: aiResponse,
-                type: 'text'
-            };
+                // Add AI message
+                const aiMessage: InterviewMessage = {
+                    id: generateId('msg'),
+                    timestamp: new Date(),
+                    role: 'interviewer',
+                    content: aiResponse,
+                    type: 'text'
+                };
 
-            setState(prev => ({
-                ...prev,
-                messages: [...prev.messages, aiMessage],
-                chatHistory: [
-                    ...updatedChatHistory,
-                    { role: 'assistant', content: aiResponse }
-                ],
-                // Check if AI is asking for code
-                showCodeEditor: prev.showCodeEditor || shouldShowCodeEditor(aiResponse)
-            }));
+                setState(prev => ({
+                    ...prev,
+                    messages: [...prev.messages, aiMessage],
+                    chatHistory: [
+                        ...updatedChatHistory,
+                        { role: 'assistant', content: aiResponse }
+                    ],
+                    // Check if AI is asking for code
+                    showCodeEditor: prev.showCodeEditor || shouldShowCodeEditor(aiResponse)
+                }));
 
-            // Save AI message
-            await sendMessage({
-                type: 'SAVE_MESSAGE',
-                data: { sessionId: state.session.id, message: aiMessage }
-            });
+                // Save AI message
+                await sendMessage({
+                    type: 'SAVE_MESSAGE',
+                    data: { sessionId: state.session.id, message: aiMessage }
+                });
 
-            // Speak AI response if voice is enabled
-            if (state.config.voice.enabled) {
-                await voiceService.speak(aiResponse, state.config.voice);
+                // Speak AI response if voice is enabled
+                if (state.config.voice.enabled) {
+                    await voiceService.speak(aiResponse, state.config.voice);
+                }
             }
 
         } catch (error) {
@@ -322,7 +391,26 @@ Description: ${problem.description}`
         if (!state.config?.speechRecognition.enabled) return;
 
         try {
-            await voiceService.startListening(state.config.speechRecognition);
+            if (state.useRealtimeAPI) {
+                // Try Realtime API for ChatGPT-level experience
+                try {
+                    if (!realtimeService.getIsConnected()) {
+                        await realtimeService.connect();
+                    }
+                    await realtimeService.startListening(state.config.speechRecognition);
+                } catch (realtimeError) {
+                    console.warn('Realtime API failed, falling back to traditional voice:', realtimeError);
+                    // Automatically fall back to traditional voice
+                    setState(prev => ({
+                        ...prev,
+                        useRealtimeAPI: false
+                    }));
+                    await voiceService.startListening(state.config.speechRecognition);
+                }
+            } else {
+                // Use traditional voice service
+                await voiceService.startListening(state.config.speechRecognition);
+            }
         } catch (error) {
             console.error('Failed to start listening:', error);
             setState(prev => ({
@@ -333,11 +421,19 @@ Description: ${problem.description}`
     };
 
     const stopListening = () => {
-        voiceService.stopListening();
+        if (state.useRealtimeAPI) {
+            realtimeService.stopListening();
+        } else {
+            voiceService.stopListening();
+        }
     };
 
     const stopSpeaking = () => {
-        voiceService.stopSpeaking();
+        if (state.useRealtimeAPI) {
+            realtimeService.stopSpeaking();
+        } else {
+            voiceService.stopSpeaking();
+        }
     };
 
     const pauseInterview = async () => {
@@ -496,6 +592,25 @@ Description: ${problem.description}`
         voiceService.setSpeechRate(rate);
     };
 
+    const toggleRealtimeAPI = () => {
+        const newMode = !state.useRealtimeAPI;
+
+        setState(prev => ({
+            ...prev,
+            useRealtimeAPI: newMode
+        }));
+
+        // Stop current services when switching
+        stopListening();
+        stopSpeaking();
+
+        if (newMode) {
+            console.log('LeetMentor: Attempting to switch to Realtime API (will fallback to traditional if needed)');
+        } else {
+            console.log('LeetMentor: Switched to Traditional Voice');
+        }
+    };
+
     if (state.status === 'loading') {
         return <LoadingScreen />;
     }
@@ -578,6 +693,8 @@ Description: ${problem.description}`
                                         onOpenCodeEditor={openCodeEditor}
                                         onSpeechRateChange={handleSpeechRateChange}
                                         currentSpeechRate={state.speechRate}
+                                        useRealtimeAPI={state.useRealtimeAPI}
+                                        onToggleRealtimeAPI={toggleRealtimeAPI}
                                     />
                                 )}
 

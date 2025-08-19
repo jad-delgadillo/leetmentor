@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Volume2, VolumeX, Code, Gauge } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Code, Gauge, Zap } from 'lucide-react';
 
 interface VoiceControlsProps {
     isListening: boolean;
@@ -11,6 +11,8 @@ interface VoiceControlsProps {
     onOpenCodeEditor?: () => void;
     onSpeechRateChange?: (rate: number) => void;
     currentSpeechRate?: number;
+    useRealtimeAPI?: boolean;
+    onToggleRealtimeAPI?: () => void;
 }
 
 const VoiceControls: React.FC<VoiceControlsProps> = ({
@@ -22,7 +24,9 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
     onStopSpeaking,
     onOpenCodeEditor,
     onSpeechRateChange,
-    currentSpeechRate = 1.0
+    currentSpeechRate = 1.0,
+    useRealtimeAPI = false,
+    onToggleRealtimeAPI
 }) => {
     // Add keyboard shortcut for push-to-talk (spacebar)
     React.useEffect(() => {
@@ -123,8 +127,8 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
                         </button>
                     )}
 
-                    {/* Speech Rate Control */}
-                    {onSpeechRateChange && (
+                    {/* Speech Rate Control - Only for traditional voice */}
+                    {onSpeechRateChange && !useRealtimeAPI && (
                         <div className="flex items-center space-x-1 bg-gray-100 rounded-md p-1">
                             <Gauge className="w-3 h-3 text-gray-600" />
                             {[1.0, 1.25, 1.5, 2.0].map(rate => (
@@ -143,11 +147,38 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
                         </div>
                     )}
 
+                    {/* Realtime API Toggle */}
+                    {onToggleRealtimeAPI && (
+                        <button
+                            onClick={onToggleRealtimeAPI}
+                            className={`flex items-center space-x-1 px-2 py-1 text-xs rounded transition-colors ${useRealtimeAPI
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                            title={useRealtimeAPI ? 'Switch to Traditional Voice' : 'Switch to Realtime API (ChatGPT-level)'}
+                        >
+                            <Zap className="w-3 h-3" />
+                            <span>{useRealtimeAPI ? 'Realtime' : 'Traditional'}</span>
+                        </button>
+                    )}
+
                     {/* Voice Status Indicator */}
-                    <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 rounded">
-                        <Volume2 className="w-3 h-3 text-blue-600" />
-                        <span className="text-xs text-blue-700 font-medium">
-                            {isEnabled ? 'OpenAI Voice + Whisper' : 'Voice Disabled'}
+                    <div className={`flex items-center space-x-1 px-2 py-1 rounded ${useRealtimeAPI
+                        ? 'bg-purple-100'
+                        : 'bg-blue-100'
+                        }`}>
+                        <Volume2 className={`w-3 h-3 ${useRealtimeAPI
+                            ? 'text-purple-600'
+                            : 'text-blue-600'
+                            }`} />
+                        <span className={`text-xs font-medium ${useRealtimeAPI
+                            ? 'text-purple-700'
+                            : 'text-blue-700'
+                            }`}>
+                            {isEnabled
+                                ? (useRealtimeAPI ? 'ChatGPT Realtime' : 'OpenAI Voice + Whisper')
+                                : 'Voice Disabled'
+                            }
                         </span>
                     </div>
                 </div>
@@ -155,8 +186,23 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
 
             {/* Voice Tips */}
             {isEnabled && !isListening && !isSpeaking && (
-                <div className="mt-2 text-xs text-blue-600 text-center">
-                    🎤 Enhanced accent recognition • Hold <kbd className="bg-blue-100 px-1 rounded text-blue-700">Space</kbd> or click mic to talk
+                <div className="mt-2 text-xs text-center">
+                    {useRealtimeAPI ? (
+                        <span className="text-purple-600">
+                            ⚡ Realtime mode • Hold <kbd className="bg-purple-100 px-1 rounded text-purple-700">Space</kbd> or click mic for instant response
+                        </span>
+                    ) : (
+                        <span className="text-blue-600">
+                            🎤 Enhanced accent recognition • Hold <kbd className="bg-blue-100 px-1 rounded text-blue-700">Space</kbd> or click mic to talk
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* Realtime API Status */}
+            {useRealtimeAPI && !isListening && !isSpeaking && (
+                <div className="mt-1 text-xs text-center text-gray-500">
+                    Note: Realtime API requires server setup - currently using enhanced traditional voice
                 </div>
             )}
 
