@@ -1,6 +1,8 @@
 import { VoiceSettings, SpeechRecognitionSettings } from '../types/api';
 
 export class RealtimeVoiceService {
+  private static instance: RealtimeVoiceService | null = null;
+  
   private websocket: WebSocket | null = null;
   private audioContext: AudioContext | null = null;
   private audioWorkletNode: AudioWorkletNode | null = null;
@@ -10,6 +12,14 @@ export class RealtimeVoiceService {
   private isSpeaking = false;
   private apiKey: string = '';
   private sessionId: string = '';
+
+  // Singleton pattern to prevent multiple instances
+  static getInstance(): RealtimeVoiceService {
+    if (!RealtimeVoiceService.instance) {
+      RealtimeVoiceService.instance = new RealtimeVoiceService();
+    }
+    return RealtimeVoiceService.instance;
+  }
   
   // Audio streaming
   private audioQueue: Float32Array[] = [];
@@ -74,62 +84,194 @@ export class RealtimeVoiceService {
 
   // Connection Management
   async connect(): Promise<void> {
-    if (this.isConnected) return;
+    if (this.isConnected || this.websocket?.readyState === WebSocket.CONNECTING) {
+      console.log('LeetMentor Realtime: Already connected or connecting');
+      return;
+    }
     
     try {
-      console.log('LeetMentor Realtime: Attempting to connect to OpenAI Realtime API...');
+      console.log('LeetMentor Realtime: Connecting to backend proxy...');
       
-      // Note: OpenAI Realtime API may not support direct browser connections
-      // This is a limitation of browser WebSocket security and CORS policies
-      console.warn('LeetMentor Realtime: Browser-based Realtime API connection is experimental');
+      // Connect to our backend proxy server
+      const proxyUrl = this.getProxyUrl();
+      console.log(`LeetMentor Realtime: Connecting to ${proxyUrl}`);
       
-      throw new Error('Realtime API requires server-side implementation for browser compatibility');
-      
+      this.websocket = new WebSocket(proxyUrl);
+
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Connection timeout - is backend server running?'));
+        }, 10000); // 10 second timeout
+
+        this.websocket!.onopen = () => {
+          clearTimeout(timeout);
+          console.log('LeetMentor Realtime: Connected to backend proxy');
+          
+          // Send connect message to proxy
+          this.websocket!.send(JSON.stringify({ type: 'connect' }));
+          resolve();
+        };
+
+        this.websocket!.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'connection_status' && data.status === 'connected') {
+              console.log('LeetMentor Realtime: Backend connected to OpenAI!');
+              this.isConnected = true;
+              // Small delay to ensure session is fully ready
+              setTimeout(() => {
+                this.initializeSession();
+                resolve();
+              }, 500);
+            } else if (data.type === 'connection_status' && data.status === 'disconnected') {
+              console.warn('LeetMentor Realtime: Upstream disconnected:', data.message);
+              this.isConnected = false;
+              this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
+              // Pause audio capture immediately
+              if (this.isListening) {
+                this.stopListening();
+                console.log('LeetMentor Realtime: Audio capture paused due to upstream disconnect');
+              }
+            } else if (data.type === 'connection_status' && data.status === 'failed') {
+              console.error('LeetMentor Realtime: Connection failed permanently:', data.message);
+              this.isConnected = false;
+              this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
+              this.onSpeechError?.(data.message || 'Connection failed after multiple attempts');
+              // Stop trying to use the service
+              if (this.isListening) {
+                this.stopListening();
+              }
+            } else if (data.type === 'connection_status' && data.status === 'replaced') {
+              console.warn('LeetMentor Realtime: Connection replaced by newer instance:', data.message);
+              this.isConnected = false;
+              this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
+              // Gracefully handle being replaced - don't show error to user
+              if (this.isListening) {
+                this.stopListening();
+              }
+            } else if (data.type === 'error') {
+              console.error('LeetMentor Realtime: Backend error:', data.error);
+              reject(new Error(data.error));
+            } else {
+              // Handle regular OpenAI messages
+              this.handleWebSocketMessage(data);
+            }
+          } catch (e) {
+            // Handle binary/non-JSON messages (audio data)
+            this.handleWebSocketMessage(event.data);
+          }
+        };
+
+        this.websocket!.onclose = () => {
+          clearTimeout(timeout);
+          console.log('LeetMentor Realtime: Disconnected from backend proxy');
+          this.isConnected = false;
+          this.sessionConfigurationStage = 'minimal'; // Reset configuration stage on disconnect
+        };
+
+        this.websocket!.onerror = (error) => {
+          clearTimeout(timeout);
+          console.error('LeetMentor Realtime: WebSocket error:', error);
+          reject(new Error('Failed to connect to backend proxy'));
+        };
+      });
+
     } catch (error) {
-      console.error('Failed to connect to Realtime API:', error);
-      console.log('LeetMentor Realtime: Falling back to traditional voice service');
-      this.onSpeechError?.('Realtime API not available in browser - using traditional voice');
+      console.error('Failed to connect to Realtime API proxy:', error);
       throw error;
+    }
+  }
+
+  private getProxyUrl(): string {
+    // Try different backend locations
+    const isDevelopment = window.location.hostname === 'localhost' || 
+                         window.location.protocol === 'chrome-extension:';
+    
+    if (isDevelopment) {
+      return 'ws://localhost:8080';
+    } else {
+      // Production deployment URL (we'll update this when deployed)
+      return 'wss://your-app.railway.app'; // Will be updated
     }
   }
 
   private initializeSession() {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
 
-    // Initialize session with voice settings
-    const sessionConfig = {
+    // Start with MINIMAL configuration to avoid immediate 1000 closure
+    const minimalSessionConfig = {
       type: 'session.update',
       session: {
         modalities: ['text', 'audio'],
-        instructions: 'You are an AI interviewer helping with coding interview practice. Be conversational, encouraging, and provide helpful feedback. Use natural speech patterns with appropriate pauses and emphasis.',
-        voice: 'alloy', // Closest to conversational feel
+        instructions: 'You are a helpful AI assistant for coding interview practice. Be conversational and encouraging.'
+        // INTENTIONALLY minimal - we'll add more after confirming stability
+      }
+    };
+
+    console.log('LeetMentor Realtime: Sending minimal session configuration...');
+    this.websocket.send(JSON.stringify(minimalSessionConfig));
+    console.log('LeetMentor Realtime: Minimal session configuration sent - waiting for confirmation');
+  }
+
+  private sendEnhancedSessionConfig() {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+
+    // Enhanced configuration sent AFTER we confirm the minimal one works
+    const enhancedSessionConfig = {
+      type: 'session.update',
+      session: {
+        modalities: ['text', 'audio'],
+        instructions: 'You are a helpful AI assistant for coding interview practice. Be conversational and encouraging.',
+        voice: 'alloy',
         input_audio_format: 'pcm16',
         output_audio_format: 'pcm16',
-        input_audio_transcription: {
-          model: 'whisper-1'
-        },
         turn_detection: {
           type: 'server_vad',
           threshold: 0.5,
           prefix_padding_ms: 300,
-          silence_duration_ms: 500
+          silence_duration_ms: 200
         },
-        tools: [],
-        tool_choice: 'none',
-        temperature: 0.8,
-        max_response_output_tokens: 4096
+        temperature: 0.8
       }
     };
 
-    this.websocket.send(JSON.stringify(sessionConfig));
-    console.log('LeetMentor Realtime: Session initialized');
+    console.log('LeetMentor Realtime: Sending enhanced session configuration...');
+    this.websocket.send(JSON.stringify(enhancedSessionConfig));
+    console.log('LeetMentor Realtime: Enhanced session configuration sent');
   }
 
+  private sessionConfigurationStage: 'minimal' | 'enhanced' | 'complete' = 'minimal';
+
   private handleWebSocketMessage(message: any) {
+    console.log('LeetMentor Realtime: Received message type:', message.type);
+    
     switch (message.type) {
       case 'session.created':
         this.sessionId = message.session.id;
-        console.log('LeetMentor Realtime: Session created:', this.sessionId);
+        console.log('LeetMentor Realtime: Session created successfully:', this.sessionId);
+        break;
+        
+      case 'session.updated':
+        console.log('LeetMentor Realtime: Session updated successfully, stage:', this.sessionConfigurationStage);
+        
+        // Progressive enhancement after confirming each stage works
+        if (this.sessionConfigurationStage === 'minimal') {
+          console.log('LeetMentor Realtime: Minimal config successful, sending enhanced config...');
+          this.sessionConfigurationStage = 'enhanced';
+          // Wait a bit to ensure the minimal config is fully processed
+          setTimeout(() => {
+            this.sendEnhancedSessionConfig();
+          }, 100);
+        } else if (this.sessionConfigurationStage === 'enhanced') {
+          console.log('LeetMentor Realtime: Enhanced config successful, session fully ready!');
+          this.sessionConfigurationStage = 'complete';
+        }
+        break;
+        
+      case 'error':
+        console.error('LeetMentor Realtime: OpenAI error:', message);
+        this.onSpeechError?.(`OpenAI error: ${message.error?.message || 'Unknown error'}`);
         break;
 
       case 'input_audio_buffer.speech_started':
@@ -250,7 +392,26 @@ export class RealtimeVoiceService {
     }
 
     try {
-      // Get microphone access
+      console.log('LeetMentor Realtime: Requesting microphone access...');
+      
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia is not supported in this browser');
+      }
+      
+      // Check microphone permissions first
+      try {
+        const permissions = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        console.log('LeetMentor Realtime: Microphone permission state:', permissions.state);
+        
+        if (permissions.state === 'denied') {
+          throw new Error('Microphone permission denied. Please allow microphone access in browser settings.');
+        }
+      } catch (permError) {
+        console.warn('LeetMentor Realtime: Could not check permissions:', permError);
+      }
+      
+      // Get microphone access with detailed error handling
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: 24000,
@@ -259,7 +420,26 @@ export class RealtimeVoiceService {
           noiseSuppression: true,
           autoGainControl: true
         }
+      }).catch(error => {
+        console.error('LeetMentor Realtime: Microphone access failed:', error);
+        let errorMessage = 'Failed to access microphone: ';
+        
+        if (error.name === 'NotAllowedError') {
+          errorMessage += 'Permission denied. Please allow microphone access.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage += 'No microphone found. Please connect a microphone.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage += 'Microphone is being used by another application.';
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage += 'Microphone does not meet the required constraints.';
+        } else {
+          errorMessage += error.message;
+        }
+        
+        throw new Error(errorMessage);
       });
+      
+      console.log('LeetMentor Realtime: Microphone access granted successfully');
 
       if (!this.audioContext) return;
 
@@ -307,7 +487,9 @@ export class RealtimeVoiceService {
 
     } catch (error) {
       console.error('Failed to start realtime listening:', error);
-      this.onSpeechError?.('Failed to access microphone');
+      // Pass through the specific error message for better user feedback
+      const errorMessage = error instanceof Error ? error.message : 'Failed to access microphone';
+      this.onSpeechError?.(errorMessage);
     }
   }
 
@@ -429,7 +611,17 @@ export class RealtimeVoiceService {
     }
 
     this.isConnected = false;
+    this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
     console.log('LeetMentor Realtime: Disconnected and cleaned up');
+  }
+
+  // Static method to reset singleton (useful for testing or full resets)
+  static resetInstance() {
+    if (RealtimeVoiceService.instance) {
+      RealtimeVoiceService.instance.disconnect();
+      RealtimeVoiceService.instance = null;
+      console.log('LeetMentor Realtime: Singleton instance reset');
+    }
   }
 
   // Status getters

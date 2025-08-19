@@ -105,14 +105,14 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
                         </button>
                     )}
 
-                    {/* Stop Speaking Control */}
+                    {/* Stop Speaking Control - Made more prominent */}
                     {isSpeaking && (
                         <button
                             onClick={onStopSpeaking}
-                            className="btn-secondary p-2"
-                            title="Stop AI speaking"
+                            className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center transition-all duration-200 shadow-lg animate-pulse"
+                            title="Skip AI response (Click to interrupt)"
                         >
-                            <VolumeX className="w-4 h-4" />
+                            <VolumeX className="w-5 h-5" />
                         </button>
                     )}
 
@@ -202,7 +202,7 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
             {/* Realtime API Status */}
             {useRealtimeAPI && !isListening && !isSpeaking && (
                 <div className="mt-1 text-xs text-center text-gray-500">
-                    Note: Realtime API requires server setup - currently using enhanced traditional voice
+                    ⚡ Realtime mode enabled • Start server: <code className="bg-gray-100 px-1 rounded">cd backend && npm run dev</code>
                 </div>
             )}
 
@@ -216,8 +216,9 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
 
             {/* Speaking Tip */}
             {isSpeaking && (
-                <div className="mt-2 text-xs text-blue-600 text-center font-medium">
-                    🎵 AI is speaking... Click stop button to interrupt
+                <div className="mt-2 text-xs text-center">
+                    <span className="text-blue-600 font-medium">🎵 AI is speaking...</span>
+                    <span className="text-red-600 font-medium ml-2">Click red button to skip</span>
                 </div>
             )}
         </div>

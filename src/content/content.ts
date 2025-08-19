@@ -4,11 +4,16 @@ import { LeetCodeProblem, TestCase, CodeSnippet } from '../types/leetcode';
 class LeetCodeDetector {
   private problem: LeetCodeProblem | null = null;
   private observer: MutationObserver | null = null;
+  private currentUrl: string = '';
+  private urlCheckInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     console.log('LeetMentor: Content script initializing on', window.location.href);
+    this.currentUrl = window.location.href;
     this.setupMessageListener();
     this.setupDOMObserver();
+    this.setupURLWatcher();
+    this.clearOldCache();
     this.injectInterviewButton();
     this.detectCurrentProblem();
   }
@@ -49,7 +54,85 @@ class LeetCodeDetector {
     });
   }
 
+  private setupURLWatcher() {
+    // Watch for URL changes (LeetCode is a SPA)
+    this.urlCheckInterval = setInterval(() => {
+      const currentUrl = window.location.href;
+      if (currentUrl !== this.currentUrl) {
+        console.log('LeetMentor: URL changed from', this.currentUrl, 'to', currentUrl);
+        this.currentUrl = currentUrl;
+        this.handleNavigation();
+      }
+    }, 500);
+
+    // Also listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', () => {
+      console.log('LeetMentor: Popstate event detected');
+      setTimeout(() => this.handleNavigation(), 100);
+    });
+
+    // Listen for pushstate/replacestate (programmatic navigation)
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+    
+    history.pushState = function(...args) {
+      originalPushState.apply(history, args);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('urlchange'));
+      }, 0);
+    };
+    
+    history.replaceState = function(...args) {
+      originalReplaceState.apply(history, args);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('urlchange'));
+      }, 0);
+    };
+
+    window.addEventListener('urlchange', () => {
+      console.log('LeetMentor: URL change event detected');
+      setTimeout(() => this.handleNavigation(), 100);
+    });
+  }
+
+  public async clearOldCache() {
+    // Clear any existing cached problem data when loading a new page
+    try {
+      await chrome.storage.local.remove(['leetmentor_current_problem', 'leetmentor_problem_timestamp']);
+      console.log('LeetMentor: Cleared old cached problem data');
+    } catch (error) {
+      console.warn('LeetMentor: Failed to clear cache:', error);
+    }
+  }
+
+  // Cleanup method to prevent memory leaks
+  public cleanup() {
+    console.log('LeetMentor: Cleaning up content script...');
+    
+    if (this.urlCheckInterval) {
+      clearInterval(this.urlCheckInterval);
+      this.urlCheckInterval = null;
+    }
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    
+    // Clear any cached data on cleanup
+    this.clearOldCache().catch(error => {
+      console.warn('LeetMentor: Failed to clear cache during cleanup:', error);
+    });
+  }
+
   private handleNavigation() {
+    console.log('LeetMentor: Handling navigation to', window.location.href);
+    
+    // Clear cache when navigating
+    this.clearOldCache();
+    
+    // Reset current problem
+    this.problem = null;
+    
     setTimeout(() => {
       this.detectCurrentProblem();
       this.injectInterviewButton();
@@ -68,13 +151,38 @@ class LeetCodeDetector {
     );
   }
 
-  private async detectCurrentProblem() {
+  public async detectCurrentProblem() {
     try {
       const problem = await this.extractProblemData();
-      if (problem && problem.id !== this.problem?.id) {
-        this.problem = problem;
-        console.log('Detected LeetCode problem:', problem.title);
-        this.updateInterviewButton();
+      if (problem) {
+        // Always update if we have a new problem, even if the ID is the same
+        // This handles cases where the content changes but the URL slug doesn't
+        const isNewProblem = !this.problem || 
+                            problem.id !== this.problem.id || 
+                            problem.title !== this.problem.title ||
+                            problem.url !== this.problem.url;
+        
+        if (isNewProblem) {
+          console.log('LeetMentor: Detected new/updated problem:', problem.title, 'ID:', problem.id);
+          
+          // Clear old cache before setting new problem
+          await this.clearOldCache();
+          
+          this.problem = problem;
+          this.updateInterviewButton();
+          
+                // Store the new problem immediately to prevent stale data
+      await chrome.storage.local.set({
+        'leetmentor_current_problem': problem,
+        'leetmentor_problem_timestamp': Date.now()
+      });
+      
+      console.log('LeetMentor: ✅ Cached new problem data');
+      console.log('  - Title:', problem.title);
+      console.log('  - ID:', problem.id);
+      console.log('  - URL:', problem.url);
+      console.log('  - Description length:', problem.description?.length || 0, 'chars');
+        }
       }
     } catch (error) {
       console.error('Failed to detect problem:', error);
@@ -119,12 +227,56 @@ class LeetCodeDetector {
       else if (diffText.includes('hard')) difficulty = 'Hard';
     }
 
-    // Extract problem description
-    const descriptionElement = document.querySelector('[class*="question-content"]') ||
-                              document.querySelector('.content__u3I1 .question-content__JfgR') ||
-                              document.querySelector('[data-key="description-content"]');
-    
-    const description = descriptionElement?.textContent?.trim() || '';
+    // Extract problem description - try multiple selectors for different LeetCode layouts
+    const descriptionSelectors = [
+      // Modern LeetCode selectors
+      '[data-track-load="description_content"]',
+      '[data-e2e-locator="console-question-detail-description"]',
+      '[class*="question-content"]',
+      '[class*="description"]',
+      '[class*="question-detail"]',
+      '[class*="problem-content"]',
+      '.elfjS', // Sometimes used by LeetCode
+      '.content__u3I1',
+      '.question-content__JfgR',
+      '[data-key="description-content"]',
+      // Fallback selectors
+      '.css-5ifiuz', // Common LeetCode class
+      '.css-q9153y', // Another common class
+      '.css-16knbip', // Problem content container
+      'div[class*="content"] p' // Generic content paragraphs
+    ];
+
+    let descriptionElement: Element | null = null;
+    for (const selector of descriptionSelectors) {
+      descriptionElement = document.querySelector(selector);
+      if (descriptionElement && descriptionElement.textContent?.trim()) {
+        console.log(`LeetMentor: Found description using selector: ${selector}`);
+        break;
+      }
+    }
+
+    let description = '';
+    if (descriptionElement) {
+      // Get text content and clean it up
+      description = descriptionElement.textContent?.trim() || '';
+      // Remove common unwanted prefixes
+      description = description.replace(/^(Description|Problem\s*:|Problem\s+Statement)/i, '').trim();
+    } else {
+      console.warn('LeetMentor: Could not find problem description element');
+      // Try to extract from the first paragraph of the problem area
+      const paragraphs = document.querySelectorAll('p');
+      for (const p of paragraphs) {
+        const text = p.textContent?.trim() || '';
+        if (text.length > 50 && !text.includes('Example') && !text.includes('Input:') && !text.includes('Output:')) {
+          description = text;
+          console.log('LeetMentor: Found description in paragraph fallback');
+          break;
+        }
+      }
+    }
+
+    console.log('LeetMentor: Extracted description:', description.substring(0, 100) + '...');
 
     // Extract example test cases
     const exampleTestCases = this.extractExampleTestCases();
@@ -158,25 +310,81 @@ class LeetCodeDetector {
   private extractExampleTestCases(): TestCase[] {
     const testCases: TestCase[] = [];
     
-    // Look for example sections
-    const exampleElements = document.querySelectorAll('[class*="example"], .example');
-    
-    exampleElements.forEach((element, index) => {
-      const text = element.textContent || '';
-      const inputMatch = text.match(/Input:\s*(.+?)(?=Output:|$)/s);
-      const outputMatch = text.match(/Output:\s*(.+?)(?=Explanation:|$)/s);
-      const explanationMatch = text.match(/Explanation:\s*(.+?)$/s);
+    // Try multiple approaches to find examples
+    const exampleSelectors = [
+      '[class*="example"]',
+      '.example',
+      '[data-e2e-locator*="example"]',
+      '.css-example',
+      'div:contains("Example")',
+      'strong:contains("Example")',
+      'h3:contains("Example")',
+      'pre' // Sometimes examples are in <pre> tags
+    ];
 
-      if (inputMatch && outputMatch) {
-        testCases.push({
-          input: inputMatch[1].trim(),
-          output: outputMatch[1].trim(),
-          explanation: explanationMatch ? explanationMatch[1].trim() : undefined
+    // First try: Look for explicit example sections
+    exampleSelectors.forEach(selector => {
+      try {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach((element, index) => {
+          const text = element.textContent || '';
+          if (text.toLowerCase().includes('example') || text.includes('Input:') || text.includes('Output:')) {
+            this.parseExampleText(text, testCases);
+          }
         });
+      } catch (e) {
+        // Skip selectors that cause errors
       }
     });
 
+    // Second try: Look for Input/Output patterns in the whole document
+    if (testCases.length === 0) {
+      const allText = document.body.textContent || '';
+      this.parseExampleText(allText, testCases);
+    }
+
+    console.log(`LeetMentor: Extracted ${testCases.length} test cases`);
     return testCases;
+  }
+
+  private parseExampleText(text: string, testCases: TestCase[]): void {
+    // More robust regex patterns for examples
+    const examplePattern = /Example\s*\d*:?\s*[\s\S]*?Input:\s*(.+?)[\s\S]*?Output:\s*(.+?)(?:\s*Explanation:\s*([\s\S]*?))?(?=Example\s*\d*:|$)/gi;
+    
+    let match;
+    while ((match = examplePattern.exec(text)) !== null) {
+      const input = match[1]?.trim();
+      const output = match[2]?.trim();
+      const explanation = match[3]?.trim();
+
+      if (input && output) {
+        testCases.push({
+          input: input.replace(/\n\s*/g, ' ').trim(),
+          output: output.replace(/\n\s*/g, ' ').trim(),
+          explanation: explanation || undefined
+        });
+      }
+    }
+
+    // Fallback: Look for standalone Input/Output pairs
+    if (testCases.length === 0) {
+      const inputOutputPattern = /Input:\s*(.+?)[\s\S]*?Output:\s*(.+?)(?:\s*Explanation:\s*([\s\S]*?))?(?=Input:|$)/gi;
+      
+      let ioMatch;
+      while ((ioMatch = inputOutputPattern.exec(text)) !== null) {
+        const input = ioMatch[1]?.trim();
+        const output = ioMatch[2]?.trim();
+        const explanation = ioMatch[3]?.trim();
+
+        if (input && output) {
+          testCases.push({
+            input: input.replace(/\n\s*/g, ' ').trim(),
+            output: output.replace(/\n\s*/g, ' ').trim(),
+            explanation: explanation || undefined
+          });
+        }
+      }
+    }
   }
 
   private extractTopicTags(): string[] {
@@ -306,12 +514,25 @@ class LeetCodeDetector {
       return;
     }
 
+    // Validate that cached problem matches current URL
+    const currentUrl = window.location.href;
+    if (this.problem.url !== currentUrl) {
+      console.warn('LeetMentor: Problem URL mismatch. Re-detecting problem...');
+      await this.detectCurrentProblem();
+      
+      if (!this.problem || this.problem.url !== currentUrl) {
+        alert('Problem data seems outdated. Please refresh the page and try again.');
+        return;
+      }
+    }
+
     try {
       console.log('LeetMentor: Starting interview with problem:', this.problem);
       
       // Store problem data in chrome storage for the interview tab to access
       await chrome.storage.local.set({
-        'leetmentor_current_problem': this.problem
+        'leetmentor_current_problem': this.problem,
+        'leetmentor_problem_timestamp': Date.now()
       });
 
       // Send message to background script to start interview
@@ -344,8 +565,68 @@ class LeetCodeDetector {
 }
 
 // Initialize the detector when DOM is ready
+let detectorInstance: LeetCodeDetector | null = null;
+
+// Debug helper function (can be called from browser console)
+(window as any).leetmentorDebug = {
+  async checkCache() {
+    const data = await chrome.storage.local.get(['leetmentor_current_problem', 'leetmentor_problem_timestamp']);
+    console.log('🔍 LeetMentor Cache Debug:');
+    console.log('  - Current URL:', window.location.href);
+    console.log('  - Cached problem:', data.leetmentor_current_problem?.title || 'None');
+    console.log('  - Cached URL:', data.leetmentor_current_problem?.url || 'None');
+    console.log('  - Cache timestamp:', data.leetmentor_problem_timestamp ? new Date(data.leetmentor_problem_timestamp) : 'None');
+    console.log('  - Cache age:', data.leetmentor_problem_timestamp ? Math.round((Date.now() - data.leetmentor_problem_timestamp) / 1000) + ' seconds' : 'Unknown');
+    return data;
+  },
+  
+  async clearCache() {
+    await chrome.storage.local.remove(['leetmentor_current_problem', 'leetmentor_problem_timestamp']);
+    console.log('🗑️ LeetMentor cache cleared');
+  },
+  
+  async forceRefresh() {
+    if (detectorInstance) {
+      await detectorInstance.clearOldCache();
+      await detectorInstance.detectCurrentProblem();
+      console.log('🔄 LeetMentor forced refresh complete');
+    }
+  }
+};
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => new LeetCodeDetector());
+  document.addEventListener('DOMContentLoaded', () => {
+    detectorInstance = new LeetCodeDetector();
+  });
 } else {
-  new LeetCodeDetector();
+  detectorInstance = new LeetCodeDetector();
+}
+
+// Cleanup when page unloads
+window.addEventListener('beforeunload', () => {
+  if (detectorInstance) {
+    detectorInstance.cleanup();
+  }
+});
+
+// Cleanup when extension context is invalidated
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  chrome.runtime.onConnect.addListener(() => {
+    // Extension context is still valid
+  });
+  
+  // Handle extension context invalidation
+  const originalSendMessage = chrome.runtime.sendMessage;
+  chrome.runtime.sendMessage = function(...args) {
+    try {
+      return originalSendMessage.apply(chrome.runtime, args);
+    } catch (error) {
+      console.log('LeetMentor: Extension context invalidated, cleaning up...');
+      if (detectorInstance) {
+        detectorInstance.cleanup();
+        detectorInstance = null;
+      }
+      throw error;
+    }
+  };
 }

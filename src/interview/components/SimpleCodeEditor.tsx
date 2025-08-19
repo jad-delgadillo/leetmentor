@@ -11,6 +11,9 @@ interface SimpleCodeEditorProps {
     language?: string;
 }
 
+// Simple VS Code-like theme for the code editor
+// We'll use CSS classes for consistent theming instead of complex syntax highlighting
+
 const SimpleCodeEditor: React.FC<SimpleCodeEditorProps> = ({
     problem,
     onSubmitCode,
@@ -38,12 +41,20 @@ function solution() {
 console.log(solution());`,
 
             python: `# ${problem.title} - ${problem.difficulty}
-def solution():
-    # Your solution here
+# Time Complexity: O(?)
+# Space Complexity: O(?)
+
+def solution(self, nums):
+    """
+    Write your solution here
+    """
     pass
 
 # Test your solution
-print(solution())`,
+if __name__ == "__main__":
+    # Example test case
+    result = solution(None, [1, 2, 3])
+    print(f"Result: {result}")`,
 
             java: `// ${problem.title} - ${problem.difficulty}
 public class Solution {
@@ -64,16 +75,33 @@ public:
         // Your solution here
         return 0;
     }
-};`
+};`,
+
+            typescript: `// ${problem.title} - ${problem.difficulty}
+// Time Complexity: O(?)
+// Space Complexity: O(?)
+
+function solution(nums: number[]): number {
+    // Your solution here
+    return 0;
+}
+
+// Test your solution
+console.log(solution([1, 2, 3]));`
         };
 
         return templates[lang] || templates.javascript;
     };
 
+    // Track if user has made changes to the code
+    const [hasUserChanges, setHasUserChanges] = useState(false);
+
     // Initialize code when language changes or when first loaded
     useEffect(() => {
-        if (!code || code === initialCode) {
+        // Always update template when language changes, unless user has made significant changes
+        if (!hasUserChanges || !code || code === initialCode) {
             setCode(getInitialTemplate(selectedLanguage, problem));
+            setHasUserChanges(false);
         }
     }, [selectedLanguage, problem]);
 
@@ -92,12 +120,15 @@ public:
                 if (textarea) {
                     const start = textarea.selectionStart;
                     const end = textarea.selectionEnd;
-                    const newValue = code.substring(0, start) + '  ' + code.substring(end);
+
+                    // Use 4 spaces for indentation (more common in coding interviews)
+                    const indentation = '    ';
+                    const newValue = code.substring(0, start) + indentation + code.substring(end);
                     setCode(newValue);
 
                     // Move cursor after the inserted spaces
                     setTimeout(() => {
-                        textarea.selectionStart = textarea.selectionEnd = start + 2;
+                        textarea.selectionStart = textarea.selectionEnd = start + indentation.length;
                     }, 0);
                 }
             }
@@ -119,7 +150,22 @@ public:
     };
 
     const handleLanguageChange = (newLanguage: string) => {
+        // Show confirmation if user has made changes
+        if (hasUserChanges) {
+            const shouldSwitch = window.confirm(
+                'Switching languages will reset your code. Continue?'
+            );
+            if (!shouldSwitch) return;
+        }
+
         setSelectedLanguage(newLanguage);
+        setHasUserChanges(false);
+        setCode(getInitialTemplate(newLanguage, problem));
+    };
+
+    const resetCode = () => {
+        setCode(getInitialTemplate(selectedLanguage, problem));
+        setHasUserChanges(false);
     };
 
     const languages = [
@@ -149,7 +195,7 @@ public:
                     </span>
                 </div>
 
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-2">
                     {/* Language Selector */}
                     <select
                         value={selectedLanguage}
@@ -162,6 +208,17 @@ public:
                             </option>
                         ))}
                     </select>
+
+                    {/* Reset Button */}
+                    {hasUserChanges && (
+                        <button
+                            onClick={resetCode}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                            title="Reset to template"
+                        >
+                            🔄 Reset
+                        </button>
+                    )}
 
                     {/* Expand/Collapse */}
                     <button
@@ -184,35 +241,56 @@ public:
             </div>
 
             {/* Code Editor */}
-            <div className="flex-1 min-h-0 relative">
+            <div className="flex-1 min-h-0 relative bg-gray-900 rounded-b-lg overflow-hidden">
+                {/* Simple Code Editor with Basic Styling */}
                 <textarea
                     ref={textareaRef}
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    className="w-full h-full p-4 text-sm font-mono border-none resize-none focus:outline-none bg-gray-50"
+                    onChange={(e) => {
+                        setCode(e.target.value);
+                        // Mark as user-modified if they've made substantial changes
+                        const newCode = e.target.value.trim();
+                        if (newCode && newCode !== getInitialTemplate(selectedLanguage, problem).trim()) {
+                            setHasUserChanges(true);
+                        }
+                    }}
+                    className="code-editor w-full h-full text-sm border-none resize-none relative z-10"
                     style={{
-                        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-                        lineHeight: '1.5',
-                        tabSize: 2
+                        lineHeight: '1.6',
+                        tabSize: 4,
+                        paddingLeft: '70px',
+                        paddingTop: '16px',
+                        paddingRight: '16px',
+                        paddingBottom: '16px',
+                        caretColor: '#60a5fa',
+                        backgroundColor: '#111827',
+                        color: '#f9fafb'
                     }}
                     placeholder="Write your solution here..."
                     spellCheck={false}
                 />
 
-                {/* Line numbers overlay (simple) */}
-                <div className="absolute left-0 top-0 p-4 pointer-events-none text-xs text-gray-400 font-mono select-none">
-                    {code.split('\n').map((_, index) => (
-                        <div key={index} style={{ lineHeight: '1.5' }}>
-                            {(index + 1).toString().padStart(2, ' ')}
-                        </div>
-                    ))}
+                {/* Line numbers overlay */}
+                <div className="line-numbers absolute left-0 top-0 w-16 h-full border-r border-gray-700 pointer-events-none z-20">
+                    <div className="p-4">
+                        {code.split('\n').map((_, index) => (
+                            <div key={index} style={{
+                                lineHeight: '1.6',
+                                textAlign: 'right',
+                                paddingRight: '8px',
+                                color: '#6b7280'
+                            }}>
+                                {(index + 1).toString()}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             {/* Footer */}
             <div className="flex items-center justify-between p-2 border-t bg-gray-50">
                 <div className="text-xs text-gray-600">
-                    💡 <kbd className="bg-gray-200 px-1 rounded text-xs">Ctrl+Enter</kbd> to submit • <kbd className="bg-gray-200 px-1 rounded text-xs">Tab</kbd> to indent
+                    💡 <kbd className="bg-gray-200 px-1 rounded text-xs">Ctrl+Enter</kbd> to submit • <kbd className="bg-gray-200 px-1 rounded text-xs">Tab</kbd> for 4-space indent
                 </div>
 
                 <button

@@ -47,6 +47,25 @@ AI-powered Chrome extension for LeetCode interview practice with real-time voice
    - Click "Start Interview Practice" button that appears
    - Begin your AI-powered interview session
 
+### 🚀 ChatGPT Mobile Experience (Optional)
+
+For the **ultimate real-time voice experience** with streaming conversation:
+
+1. **Setup backend server:**
+   ```bash
+   cd backend
+   npm install
+   cp env.template .env
+   # Edit .env and add your OPENAI_API_KEY
+   npm run dev
+   ```
+
+2. **Enable Realtime mode:**
+   - Toggle the "Realtime" button in the extension
+   - Enjoy ChatGPT mobile-level voice conversations!
+
+**Note:** Requires the backend server for WebSocket proxy to OpenAI Realtime API.
+
 ## Development
 
 ### Available Scripts

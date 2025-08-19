@@ -1,0 +1,12 @@
+{
+  "watch": ["server.js"],
+  "ignore": [
+    "*.tmp",
+    "*.log",
+    "logs/",
+    "node_modules/"
+  ],
+  "delay": 2000,
+  "verbose": false,
+  "signal": "SIGTERM"
+}

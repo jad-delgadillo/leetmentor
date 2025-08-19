@@ -96,12 +96,28 @@ const ProblemPanel: React.FC<ProblemPanelProps> = ({ problem }) => {
                     {expandedSections.description && (
                         <div className="px-6 pb-4">
                             <div className="prose prose-sm max-w-none text-gray-700">
-                                {problem.description ? (
-                                    <p>{problem.description}</p>
+                                {problem.description && problem.description.length > 10 ? (
+                                    <div className="whitespace-pre-wrap">
+                                        {problem.description}
+                                    </div>
                                 ) : (
-                                    <p className="text-gray-500 italic">
-                                        Problem description will be displayed here
-                                    </p>
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                        <p className="text-yellow-800 font-medium mb-2">
+                                            ⚠️ Problem description not available
+                                        </p>
+                                        <p className="text-yellow-700 text-sm">
+                                            The extension couldn't extract the problem description from the current page.
+                                            This might happen if:
+                                        </p>
+                                        <ul className="text-yellow-700 text-sm mt-2 ml-4 list-disc">
+                                            <li>The page is still loading</li>
+                                            <li>LeetCode changed their layout</li>
+                                            <li>You're on a premium problem page</li>
+                                        </ul>
+                                        <p className="text-yellow-700 text-sm mt-2">
+                                            <strong>Tip:</strong> Try refreshing the LeetCode page and starting the interview again.
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         </div>

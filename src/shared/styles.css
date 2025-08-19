@@ -155,6 +155,26 @@ body {
     @apply bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto;
   }
 
+  /* Code Editor Enhancements */
+  .code-editor {
+    @apply bg-gray-900 text-gray-100 font-mono;
+    font-family: 'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+
+  .code-editor::placeholder {
+    @apply text-gray-500;
+  }
+
+  .code-editor:focus {
+    @apply outline-none ring-2 ring-blue-500 ring-opacity-50;
+  }
+
+  /* Line numbers styling */
+  .line-numbers {
+    @apply bg-gray-800 text-gray-500 text-xs font-mono select-none;
+    font-family: 'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+
   .problem-description {
     @apply prose prose-sm max-w-none;
   }

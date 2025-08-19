@@ -112,13 +112,25 @@ const InterviewApp: React.FC = () => {
             }
 
             // Get problem data from storage (stored by content script)
-            const problemData = await chrome.storage.local.get(['leetmentor_current_problem']);
+            const problemData = await chrome.storage.local.get(['leetmentor_current_problem', 'leetmentor_problem_timestamp']);
             const problem = problemData.leetmentor_current_problem;
+            const problemTimestamp = problemData.leetmentor_problem_timestamp;
 
             console.log('LeetMentor Interview: Retrieved problem data:', problem);
+            console.log('LeetMentor Interview: Problem cached at:', problemTimestamp ? new Date(problemTimestamp) : 'unknown');
 
             if (!problem) {
                 throw new Error('Could not find problem data. Please make sure you started the interview from a LeetCode problem page.');
+            }
+
+            // Check cache freshness (warn if older than 5 minutes)
+            if (problemTimestamp) {
+                const cacheAge = Date.now() - problemTimestamp;
+                const maxCacheAge = 5 * 60 * 1000; // 5 minutes
+
+                if (cacheAge > maxCacheAge) {
+                    console.warn('LeetMentor Interview: Problem data is', Math.round(cacheAge / 60000), 'minutes old. Consider refreshing the LeetCode page.');
+                }
             }
 
             // Initialize ChatGPT service
@@ -644,69 +656,67 @@ Description: ${problem.description}`
             />
 
             <div className="flex-1 flex overflow-hidden">
-                {/* Left Panel - Problem Details */}
+                {/* Left Panel - Chat Interface */}
                 <ResizablePanel
-                    title="Problem Details"
+                    title="💬 Interview Chat"
                     initialWidth={40}
-                    minWidth={25}
-                    maxWidth={60}
+                    minWidth={30}
+                    maxWidth={50}
                     className="border-r border-gray-200"
                 >
-                    <ProblemPanel problem={state.problem} />
+                    <div className="h-full flex flex-col">
+                        <div className="flex-1 overflow-hidden">
+                            <ChatInterface
+                                messages={state.messages}
+                                currentTranscript={state.currentTranscript}
+                                isLoading={state.isAiSpeaking}
+                                onSendMessage={handleUserMessage}
+                            />
+                        </div>
+
+                        {/* Voice Controls */}
+                        {state.config?.voice.enabled && (
+                            <VoiceControls
+                                isListening={state.isUserSpeaking}
+                                isSpeaking={state.isAiSpeaking}
+                                isEnabled={state.config.speechRecognition.enabled}
+                                onStartListening={startListening}
+                                onStopListening={stopListening}
+                                onStopSpeaking={stopSpeaking}
+                                onOpenCodeEditor={openCodeEditor}
+                                onSpeechRateChange={handleSpeechRateChange}
+                                currentSpeechRate={state.speechRate}
+                                useRealtimeAPI={state.useRealtimeAPI}
+                                onToggleRealtimeAPI={toggleRealtimeAPI}
+                            />
+                        )}
+
+                        {/* Interview Controls */}
+                        <InterviewControls
+                            status={state.status}
+                            onPause={pauseInterview}
+                            onResume={resumeInterview}
+                            onEnd={endInterview}
+                        />
+                    </div>
                 </ResizablePanel>
 
-                {/* Right Panel - Chat and Code Editor */}
+                {/* Right Panel - Problem and Code Editor */}
                 <ResizablePanel
-                    title="Interview Session"
+                    title="📋 Problem & Code"
                     initialWidth={60}
                     isResizable={false}
                     canMinimize={false}
                     className="flex-1"
                 >
                     <SplitPanel
-                        topTitle="💬 Voice Chat"
+                        topTitle="📝 Problem Description"
                         bottomTitle="💻 Code Editor"
                         showBottomPanel={state.showCodeEditor}
-                        initialTopHeight={65}
-                        minTopHeight={30}
-                        maxTopHeight={90}
-                        topPanel={
-                            <div className="h-full flex flex-col">
-                                <div className="flex-1 overflow-hidden">
-                                    <ChatInterface
-                                        messages={state.messages}
-                                        currentTranscript={state.currentTranscript}
-                                        isLoading={state.isAiSpeaking}
-                                        onSendMessage={handleUserMessage}
-                                    />
-                                </div>
-
-                                {/* Voice Controls */}
-                                {state.config?.voice.enabled && (
-                                    <VoiceControls
-                                        isListening={state.isUserSpeaking}
-                                        isSpeaking={state.isAiSpeaking}
-                                        isEnabled={state.config.speechRecognition.enabled}
-                                        onStartListening={startListening}
-                                        onStopListening={stopListening}
-                                        onStopSpeaking={stopSpeaking}
-                                        onOpenCodeEditor={openCodeEditor}
-                                        onSpeechRateChange={handleSpeechRateChange}
-                                        currentSpeechRate={state.speechRate}
-                                        useRealtimeAPI={state.useRealtimeAPI}
-                                        onToggleRealtimeAPI={toggleRealtimeAPI}
-                                    />
-                                )}
-
-                                {/* Interview Controls */}
-                                <InterviewControls
-                                    status={state.status}
-                                    onPause={pauseInterview}
-                                    onResume={resumeInterview}
-                                    onEnd={endInterview}
-                                />
-                            </div>
-                        }
+                        initialTopHeight={state.showCodeEditor ? 40 : 100}
+                        minTopHeight={25}
+                        maxTopHeight={80}
+                        topPanel={<ProblemPanel problem={state.problem} />}
                         bottomPanel={
                             state.showCodeEditor && state.problem ? (
                                 <SimpleCodeEditor

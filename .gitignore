@@ -107,6 +107,11 @@ Thumbs.db
 *.pem
 key.pem
 
+# Backend server specific
+backend/.env
+backend/node_modules/
+backend/*.log
+
 # Webpack
 .webpack/
 

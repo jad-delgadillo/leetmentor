@@ -200,12 +200,7 @@ export class VoiceService {
       // Start recording
       this.mediaRecorder.start();
       
-      // Auto-stop after 30 seconds to prevent very long recordings
-      setTimeout(() => {
-        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-          this.stopListening();
-        }
-      }, 30000);
+      // Note: Recording will continue until manually stopped - no time limit
 
     } catch (error) {
       console.error('Failed to start Whisper recording:', error);
@@ -476,6 +471,15 @@ export class VoiceService {
   setSpeechRate(rate: number) {
     // Clamp rate between 0.25 and 4.0 for OpenAI, and 0.1 to 10 for browser
     this.speechRate = Math.min(Math.max(rate, 0.25), 4.0);
+    
+    // If currently speaking with browser TTS, update the rate immediately
+    if (this.isSpeaking && this.synthesis.speaking) {
+      // For browser synthesis, we need to restart with new rate
+      const currentUtterances = this.synthesis.getVoices();
+      // Note: Browser TTS doesn't support changing rate mid-speech,
+      // but we store the new rate for next utterance
+      console.log('LeetMentor: Speech rate updated to', this.speechRate, '(will apply to next speech)');
+    }
   }
 
   getSpeechRate(): number {
