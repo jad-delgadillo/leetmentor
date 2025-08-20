@@ -30,6 +30,9 @@ export class VoiceService {
     this.synthesis = window.speechSynthesis;
     this.initializeSpeechRecognition();
     this.loadVoices();
+    
+    // Prioritize Whisper for better accent recognition when API key is available
+    console.log('🎤 VoiceService: Initialized with accent-friendly settings. Whisper will be used when API key is available for better Mexican English accent recognition.');
   }
 
   private initializeSpeechRecognition() {
@@ -64,11 +67,35 @@ export class VoiceService {
       let interimTranscript = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
+        const result = event.results[i];
+        
+        // For Mexican English accent tolerance, check multiple alternatives
+        let bestTranscript = result[0].transcript;
+        let bestConfidence = result[0].confidence || 0;
+        
+        console.log(`🎤 Speech alternatives for result ${i}:`);
+        
+        // Check all available alternatives and log them
+        for (let j = 0; j < Math.min(result.length, 5); j++) {
+          const alternative = result[j];
+          const confidence = alternative.confidence || 0;
+          console.log(`  Alternative ${j}: "${alternative.transcript}" (confidence: ${confidence})`);
+          
+          // For Mexican English, sometimes lower confidence alternatives are more accurate
+          // Use a smarter selection that considers common accent patterns
+          if (j > 0 && this.isLikelyBetterForMexicanEnglish(alternative.transcript, bestTranscript, confidence, bestConfidence)) {
+            bestTranscript = alternative.transcript;
+            bestConfidence = confidence;
+            console.log(`  ✅ Selected alternative ${j} as better for Mexican English`);
+          }
+        }
+        
+        console.log(`🎤 Final selection: "${bestTranscript}" (confidence: ${bestConfidence})`);
+        
+        if (result.isFinal) {
+          finalTranscript += bestTranscript;
         } else {
-          interimTranscript += transcript;
+          interimTranscript += bestTranscript;
         }
       }
 
@@ -124,15 +151,23 @@ export class VoiceService {
       this.stopListening();
     }
 
+    console.log('🎤 VoiceService: Starting speech recognition...');
+    console.log('🎤 API Key available:', !!this.apiKey);
+    console.log('🎤 Use Whisper setting:', this.useOpenAIWhisper);
+
     // Use OpenAI Whisper for better accent recognition if API key is available
     if (this.useOpenAIWhisper && this.apiKey) {
       try {
+        console.log('🎤 Attempting to use Whisper for Mexican English accent recognition...');
         await this.startWhisperListening(settings);
+        console.log('✅ Successfully started Whisper listening');
         return;
       } catch (error) {
-        console.warn('Whisper failed, falling back to browser recognition:', error);
+        console.warn('❌ Whisper failed, falling back to browser recognition:', error);
         // Fall back to browser recognition
       }
+    } else {
+      console.log('🎤 Using browser speech recognition (Whisper not available)');
     }
 
     // Browser speech recognition fallback
@@ -140,11 +175,29 @@ export class VoiceService {
       throw new Error('Speech recognition not supported in this browser');
     }
 
-    // Configure for longer utterances and better conversation flow
-    this.recognition.lang = settings.language;
+    // Configure specifically for Mexican English accent
+    // Try multiple language variants for better accent recognition
+    const accentFriendlyLanguages = [
+      'en-US', // Primary
+      'en',    // Generic English
+      'es-MX', // Mexican Spanish (for code-switching)
+      'en-MX'  // Mexican English if supported
+    ];
+    
+    this.recognition.lang = settings.language || 'en-US';
     this.recognition.continuous = true; // Always use continuous for longer messages
     this.recognition.interimResults = true; // Always show interim results
-    this.recognition.maxAlternatives = 1;
+    this.recognition.maxAlternatives = 5; // Get more alternatives for accent tolerance
+    
+    // Extend silence delay for non-native speakers who may speak slower
+    this.silenceDelay = 4000; // Increased to 4 seconds for Mexican English patterns
+    
+    console.log('🎤 Browser recognition configured for Mexican English:', {
+      language: this.recognition.lang,
+      continuous: this.recognition.continuous,
+      maxAlternatives: this.recognition.maxAlternatives,
+      silenceDelay: this.silenceDelay
+    });
     
     try {
       console.log('LeetMentor: Starting browser speech recognition with settings:', {
@@ -212,8 +265,11 @@ export class VoiceService {
     const formData = new FormData();
     formData.append('file', audioBlob, 'audio.wav');
     formData.append('model', 'whisper-1');
-    formData.append('language', language.split('-')[0]); // Convert 'en-US' to 'en'
-    formData.append('response_format', 'text');
+    formData.append('language', 'en'); // English for Mexican-English speakers
+    formData.append('response_format', 'verbose_json'); // Get more detailed results
+    
+    // Add prompt to help with Mexican English accent recognition
+    formData.append('prompt', 'This is a conversation about coding and programming concepts. The speaker may have a Mexican English accent. Common technical terms: algorithm, function, variable, array, string, integer, boolean, loop, condition, complexity, solution, problem, test case, edge case, runtime, space, time, Big O notation.');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -224,10 +280,15 @@ export class VoiceService {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Whisper API error details:', errorText);
       throw new Error(`Whisper API error: ${response.status}`);
     }
 
-    return await response.text();
+    const result = await response.json();
+    console.log('🎤 Whisper transcription confidence:', result.segments?.map(s => s.avg_logprob) || 'N/A');
+    
+    return result.text || '';
   }
 
   stopListening() {
@@ -335,24 +396,19 @@ export class VoiceService {
     return new Promise((resolve, reject) => {
       const utterance = new SpeechSynthesisUtterance(text);
       
-      // Configure voice settings
-      utterance.rate = this.speechRate;
-      utterance.pitch = settings.pitch || SPEECH_SETTINGS.DEFAULT_PITCH;
-      utterance.volume = settings.volume || SPEECH_SETTINGS.DEFAULT_VOLUME;
-      utterance.lang = settings.language;
+      // Configure voice settings for more natural speech
+      utterance.rate = settings.rate || 1.1; // Slightly faster for more natural flow
+      utterance.pitch = settings.pitch || 1.2; // Higher pitch for female voice
+      utterance.volume = settings.volume || 0.9;
+      utterance.lang = settings.language || 'en-US';
 
-      // Set voice if specified and available
-      if (settings.voice) {
-        const voice = this.voices.find(v => v.name === settings.voice?.name);
-        if (voice) {
-          utterance.voice = voice;
-        }
+      // Find the best female US voice
+      const femaleVoice = this.findBestFemaleVoice();
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+        console.log('🎤 Using female voice:', femaleVoice.name);
       } else {
-        // Find best voice for the language
-        const voice = this.voices.find(v => v.lang.startsWith(settings.language));
-        if (voice) {
-          utterance.voice = voice;
-        }
+        console.log('🎤 No female voice found, using default');
       }
 
       utterance.onstart = () => {
@@ -375,10 +431,101 @@ export class VoiceService {
     });
   }
 
+  private findBestFemaleVoice(): SpeechSynthesisVoice | null {
+    // Preferred female US voices in order of preference
+    const preferredFemaleVoices = [
+      'Samantha', // macOS
+      'Susan', // macOS  
+      'Victoria', // macOS
+      'Karen', // macOS
+      'Microsoft Zira - English (United States)', // Windows
+      'Microsoft Eva - English (United States)', // Windows
+      'Google US English Female', // Chrome
+      'en-US-Female' // Generic
+    ];
+
+    // First try to find exact matches
+    for (const voiceName of preferredFemaleVoices) {
+      const voice = this.voices.find(v => v.name === voiceName);
+      if (voice) {
+        return voice;
+      }
+    }
+
+    // If no exact match, find any female-sounding US voice
+    const femaleKeywords = ['female', 'woman', 'samantha', 'susan', 'karen', 'zira', 'eva'];
+    const femaleVoice = this.voices.find(v => 
+      v.lang.startsWith('en-US') && 
+      femaleKeywords.some(keyword => v.name.toLowerCase().includes(keyword))
+    );
+
+    if (femaleVoice) {
+      return femaleVoice;
+    }
+
+    // Fallback to any US voice
+    return this.voices.find(v => v.lang.startsWith('en-US')) || null;
+  }
+
+  private isLikelyBetterForMexicanEnglish(newTranscript: string, currentBest: string, newConfidence: number, bestConfidence: number): boolean {
+    // Common Mexican English pronunciation patterns that might have lower confidence but be more accurate
+    const techTerms = [
+      'algorithm', 'variable', 'function', 'array', 'string', 'integer', 'boolean', 
+      'complexity', 'solution', 'problem', 'runtime', 'space', 'time', 'loop',
+      'condition', 'edge case', 'test case', 'big o', 'notation'
+    ];
+    
+    const newLower = newTranscript.toLowerCase();
+    const currentLower = currentBest.toLowerCase();
+    
+    // Count technical terms in each alternative
+    const newTechTermCount = techTerms.filter(term => newLower.includes(term)).length;
+    const currentTechTermCount = techTerms.filter(term => currentLower.includes(term)).length;
+    
+    // If the new alternative has more technical terms, it might be better even with lower confidence
+    if (newTechTermCount > currentTechTermCount && newConfidence > 0.3) {
+      return true;
+    }
+    
+    // If confidence is reasonably close (within 0.2) and the new one seems more coherent
+    if (Math.abs(newConfidence - bestConfidence) < 0.2) {
+      // Prefer alternatives that are longer (more complete thoughts)
+      if (newTranscript.length > currentBest.length * 1.2) {
+        return true;
+      }
+      
+      // Prefer alternatives with better English word patterns
+      if (this.hasMoreEnglishPatterns(newTranscript, currentBest)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private hasMoreEnglishPatterns(text1: string, text2: string): boolean {
+    // Simple heuristic: count common English patterns
+    const englishPatterns = [
+      /\b(the|and|or|but|if|when|then|this|that|with|for|from|to|in|on|at)\b/gi,
+      /\b(i|you|we|they|it|he|she)\b/gi,
+      /\b(can|could|should|would|will|might|may)\b/gi
+    ];
+    
+    let score1 = 0;
+    let score2 = 0;
+    
+    englishPatterns.forEach(pattern => {
+      score1 += (text1.match(pattern) || []).length;
+      score2 += (text2.match(pattern) || []).length;
+    });
+    
+    return score1 > score2;
+  }
+
   private getOpenAIVoice(language: string): string {
     // Map language to best OpenAI voice for conversational experience
     const voiceMap: Record<string, string> = {
-      'en-US': 'nova',    // Female, warm, American voice (closest to "maple")
+      'en-US': 'nova',    // Female, warm, American voice - most natural
       'en-GB': 'echo',    // British accent
       'es-ES': 'nova',    // Works well for Spanish
       'fr-FR': 'shimmer', // Good for French

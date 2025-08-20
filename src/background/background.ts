@@ -30,6 +30,30 @@ class BackgroundService {
         this.handleLeetCodeNavigation(tabId, tab.url);
       }
     });
+
+    // Add webNavigation listener for SPA navigation
+    chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
+      console.log('🔄 Background: History state updated:', details.url);
+      
+      // Only handle main frame navigation
+      if (details.frameId !== 0) return;
+      
+      // Only handle LeetCode problem pages
+      if (!/https:\/\/leetcode\.com\/(problems|studyplan|explore)/.test(details.url)) return;
+
+      console.log('✅ Background: Re-injecting content script for SPA navigation');
+
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: details.tabId },
+          files: ['content-standalone.js'], // Use standalone content script
+          world: 'ISOLATED',
+        });
+        console.log('✅ Background: Content script re-injected successfully');
+      } catch (e) {
+        console.warn('❌ Background: Content script re-injection failed:', e);
+      }
+    });
   }
 
   private async initializeExtension() {
@@ -91,6 +115,28 @@ class BackgroundService {
         case 'UPDATE_CONFIG':
           await this.updateConfig(message.data.config);
           sendResponse({ success: true });
+          break;
+
+        case 'HANDLE_EMBEDDED_MESSAGE':
+          const chatResponse = await this.handleEmbeddedMessage(message.data);
+          sendResponse({ success: true, data: chatResponse });
+          break;
+
+        case 'HANDLE_SUBMISSION_RESULT':
+          const submissionFeedback = await this.handleSubmissionResult(message.data);
+          sendResponse({ success: true, data: submissionFeedback });
+          break;
+
+        case 'GET_AI_RESPONSE':
+          this.handleAIResponse(message.data, sendResponse);
+          break;
+        
+        case 'TRANSCRIBE_AUDIO':
+          this.handleAudioTranscription(message.data, sendResponse);
+          break;
+        
+        case 'SYNTHESIZE_SPEECH':
+          this.handleSpeechSynthesis(message.data, sendResponse);
           break;
 
         default:
@@ -194,6 +240,483 @@ class BackgroundService {
 
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async handleEmbeddedMessage(data: any): Promise<{ response: string }> {
+    const { problem, message, config, conversationHistory = [], interviewPhase = 'problem-understanding' } = data;
+
+    if (!config || !config.apiKey) {
+      // Try to get config from storage if not provided
+      const configResponse = await this.getConfig();
+      if (!configResponse || !configResponse.apiKey) {
+        throw new Error('API key not configured. Please configure your OpenAI API key in the extension popup.');
+      }
+      data.config = configResponse;
+    }
+
+    try {
+      // Enhanced system prompt based on interview phase
+      const systemPrompt = this.buildInterviewerPrompt(problem, interviewPhase);
+
+      // Build conversation with proper context
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory,
+        { role: 'user', content: message }
+      ];
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${data.config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: data.config.model || 'gpt-4',
+          messages: messages,
+          max_tokens: 400,
+          temperature: 0.7,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OpenAI API error:', errorText);
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.choices || !result.choices[0] || !result.choices[0].message) {
+        console.error('Unexpected API response structure:', result);
+        throw new Error('Unexpected response from OpenAI API');
+      }
+
+      const aiResponse = result.choices[0].message.content || 'I apologize, but I encountered an error processing your message. Please try again.';
+
+      return { response: aiResponse };
+    } catch (error) {
+      console.error('Error handling embedded message:', error);
+      
+      // Provide helpful fallback responses
+      if (error instanceof Error && error.message.includes('API key')) {
+        throw new Error('Please configure your OpenAI API key in the extension popup to enable the AI interviewer.');
+      }
+      
+      throw error;
+    }
+  }
+
+  private buildInterviewerPrompt(problem: any, phase: string): string {
+    const basePrompt = `You are an experienced technical interviewer conducting a coding interview. Your goal is to evaluate the candidate's problem-solving skills, communication, and coding ability.
+
+Current Problem:
+Title: ${problem?.title || 'Unknown'}
+Difficulty: ${problem?.difficulty || 'Unknown'}
+Description: ${problem?.description ? problem.description.substring(0, 300) + '...' : 'N/A'}
+
+CURRENT INTERVIEW PHASE: ${phase.toUpperCase().replace('-', ' ')}`;
+
+    const phaseInstructions = {
+      'problem-understanding': `
+PHASE: PROBLEM UNDERSTANDING
+Your current focus:
+- Have them explain the problem in their own words
+- Ask clarifying questions about input/output format
+- Discuss edge cases and constraints
+- Confirm they understand what's being asked
+- DO NOT discuss algorithms or approaches yet
+- Keep responses short and focused on understanding`,
+
+      'approach-discussion': `
+PHASE: APPROACH DISCUSSION
+Your current focus:
+- Ask them to think of different approaches
+- Discuss trade-offs between approaches
+- Guide them to the optimal approach through questions
+- Ask about time and space complexity for each approach
+- DO NOT ask for implementation details yet
+- Focus on high-level strategy`,
+
+      'complexity-analysis': `
+PHASE: COMPLEXITY ANALYSIS
+Your current focus:
+- Confirm time complexity: "What's the time complexity of this approach?"
+- Confirm space complexity: "What about space complexity?"
+- Make sure they can explain WHY it has that complexity
+- Discuss if there are better complexity options
+- Prepare them for implementation`,
+
+      'implementation': `
+PHASE: IMPLEMENTATION
+Your current focus:
+- Guide them to use the LeetCode editor: "Great! Now let's implement this solution. Go ahead and code it in the LeetCode editor below."
+- While they code, ask about edge cases
+- Ask them to walk through their code
+- NO pseudocode - they should write actual code in LeetCode
+- Encourage them to test their solution`,
+
+      'testing-review': `
+PHASE: TESTING & REVIEW
+Your current focus:
+- Ask them to test with examples
+- Discuss optimizations if any
+- Ask about alternative approaches
+- Provide constructive feedback
+- Wrap up the interview positively`
+    };
+
+    const currentPhaseInstructions = phaseInstructions[phase as keyof typeof phaseInstructions] || phaseInstructions['problem-understanding'];
+
+    return `${basePrompt}
+
+${currentPhaseInstructions}
+
+IMPORTANT RULES:
+- Keep responses to 1-2 sentences max
+- Be encouraging but maintain interview standards
+- Guide through questions, don't lecture
+- Focus on their thought process
+- Be conversational and supportive
+
+Remember: This is practice, so be constructive and educational while maintaining realistic interview standards.`;
+  }
+
+  private async handleSubmissionResult(data: any): Promise<{ feedback: string }> {
+    const { problem, result, isAccepted, config } = data;
+
+    if (!config || !config.apiKey) {
+      throw new Error('API key not configured');
+    }
+
+    if (isAccepted) {
+      return { feedback: "Excellent work! Your solution passed all test cases. Would you like to discuss the time and space complexity, or explore any optimizations?" };
+    }
+
+    try {
+      // Get AI feedback on the submission result
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: config.model || 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a technical interviewer helping a candidate debug their LeetCode submission. Provide constructive feedback and guidance.
+
+Problem: ${problem?.title || 'Unknown'}
+Difficulty: ${problem?.difficulty || 'Unknown'}`
+            },
+            {
+              role: 'user',
+              content: `My submission result was: "${result}". Can you help me understand what might have gone wrong and suggest what to check or improve?`
+            }
+          ],
+          max_tokens: 400,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OpenAI API error:', errorText);
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const apiResult = await response.json();
+      const feedback = apiResult.choices[0]?.message?.content || 'Let me help you debug this. Can you share more details about your approach?';
+
+      return { feedback };
+    } catch (error) {
+      console.error('Error handling submission result:', error);
+      return { feedback: 'I encountered an error providing feedback. Let\'s try a different approach - can you walk me through your solution step by step?' };
+    }
+  }
+
+  private async handleAIResponse(data: any, sendResponse: (response?: any) => void) {
+    try {
+      const { problem, conversationHistory, userMessage, hasAcceptedSubmission } = data;
+      
+      // Get the stored API key
+      const config = await this.getConfig();
+      
+      if (!config.apiKey) {
+        sendResponse({ 
+          success: false, 
+          error: 'OpenAI API key not configured. Please set it in the extension settings.' 
+        });
+        return;
+      }
+
+      // Build messages for the OpenAI API
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a senior software engineer conducting a technical coding interview at a top tech company (Google/Meta/Amazon level). You're interviewing for a Software Engineer position.
+
+PROBLEM CONTEXT:
+- Title: ${problem.title}
+- Difficulty: ${problem.difficulty}
+- URL: ${problem.url}
+- Submission Status: ${hasAcceptedSubmission ? 'ACCEPTED - Solution working' : 'Not yet submitted'}
+
+IMPORTANT: The candidate can see the full problem description on the LeetCode page. DO NOT repeat or summarize the problem description unless they specifically ask for clarification. Focus on the interview process, not explaining what they can already read.
+
+INTERVIEW METHODOLOGY - Follow this structured approach:
+
+1. PROBLEM UNDERSTANDING (First 5-10 minutes):
+   - Ask them to explain the problem in their own words
+   - Ask clarifying questions about inputs/outputs, constraints, edge cases
+   - Have them walk through examples
+   - "Can you explain the problem back to me in your own words?"
+
+2. APPROACH DISCUSSION (Next 10-15 minutes):
+   - Ask: "What approaches come to mind for solving this?"
+   - Discuss multiple approaches (brute force first, then optimizations)
+   - For each approach, ALWAYS ask: "What would be the time and space complexity?"
+   - Guide them toward the optimal solution through Socratic questioning
+   - "Have you seen similar problems? What patterns might apply here?"
+
+3. IMPLEMENTATION (Next 15-20 minutes):
+   - Once approach is clear, ask them to implement in the LeetCode editor
+   - "Now let's implement this. Please use the LeetCode code editor to write your solution."
+   - While they code, engage with questions about their implementation choices
+   - Ask about edge cases: "What if the input is empty? What about null values?"
+
+4. ANALYSIS & OPTIMIZATION (Final 10-15 minutes):
+   - After implementation: "Walk me through your solution. What's the time complexity?"
+   - "What's the space complexity? Can we optimize either?"
+   - "Are there any edge cases we should consider?"
+   - "How would this perform with very large inputs?"
+
+CONVERSATION STYLE:
+- Be professional but friendly - like a colleague, not a teacher
+- Ask probing questions that real interviewers ask
+- Challenge assumptions: "Are you sure about that complexity analysis?"
+- Use phrases like: "Interesting approach", "That's a good start", "Let's think about this together"
+- When they get stuck: "What's your intuition telling you here?"
+- For hints: "What if we tried a different data structure?"
+- Keep responses concise and focused - avoid long explanations
+
+COMPLEXITY ANALYSIS - ALWAYS ASK:
+- "What's the time complexity of this approach and why?"
+- "What about space complexity?"
+- "Can we do better than O(n²)?"
+- "What's the trade-off between time and space here?"
+
+TECHNICAL DEPTH:
+- Ask about algorithm choices: "Why did you choose this data structure?"
+- Discuss alternatives: "What other approaches did you consider?"
+- Test understanding: "How would you modify this for [variant scenario]?"
+
+IMPORTANT NOTES:
+- The candidate writes code in LeetCode editor, not chat
+- System auto-detects accepted submissions
+- Maintain interview pressure but be encouraging
+- Focus on problem-solving process, not just correct answers
+- Real interviews are collaborative - guide them to success
+- If they've already submitted successfully, focus on discussion rather than asking them to implement again
+- After success, transition to optimization discussion or move to next problem
+- Keep responses short and to the point - this is a voice conversation
+
+CURRENT STATUS: ${hasAcceptedSubmission ? 'SOLUTION ACCEPTED - Focus on analysis, optimization, and follow-up questions. Do not ask them to implement again.' : 'NO SUBMISSION YET - Continue with normal interview flow.'}`
+        },
+        // Add conversation history
+        ...conversationHistory,
+        // Add current user message
+        {
+          role: 'user',
+          content: userMessage
+        }
+      ];
+
+      console.log('🤖 Background: Sending request to OpenAI API...');
+
+      // Call OpenAI API
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: config.model || 'gpt-4',
+          messages: messages,
+          max_tokens: 150, // Shorter responses for faster voice
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Background: OpenAI API error:', errorText);
+        
+        let errorMessage = 'Failed to get AI response';
+        if (response.status === 401) {
+          errorMessage = 'Invalid API key. Please check your OpenAI API key in settings.';
+        } else if (response.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please try again in a moment.';
+        }
+        
+        sendResponse({ success: false, error: errorMessage });
+        return;
+      }
+
+      const apiResult = await response.json();
+      const aiResponse = apiResult.choices[0]?.message?.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
+
+      console.log('✅ Background: Got AI response successfully');
+      sendResponse({ success: true, data: aiResponse });
+
+    } catch (error) {
+      console.error('❌ Background: Error in handleAIResponse:', error);
+      sendResponse({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      });
+    }
+  }
+
+  private async handleAudioTranscription(data: any, sendResponse: (response?: any) => void) {
+    try {
+      const { audioData, mimeType } = data;
+      
+      // Get the stored API key
+      const config = await this.getConfig();
+      
+      if (!config.apiKey) {
+        sendResponse({ 
+          success: false, 
+          error: 'OpenAI API key not configured. Please set it in the extension settings.' 
+        });
+        return;
+      }
+
+      console.log('🎤 Background: Transcribing audio with Whisper...');
+
+      // Convert base64 to blob
+      const base64Response = await fetch(audioData);
+      const audioBlob = await base64Response.blob();
+
+      // Create FormData for Whisper API
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'en'); // Can be made configurable
+      formData.append('response_format', 'json');
+
+      // Call OpenAI Whisper API
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Background: Whisper API error:', errorText);
+        
+        let errorMessage = 'Failed to transcribe audio';
+        if (response.status === 401) {
+          errorMessage = 'Invalid API key. Please check your OpenAI API key in settings.';
+        } else if (response.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please try again in a moment.';
+        }
+        
+        sendResponse({ success: false, error: errorMessage });
+        return;
+      }
+
+      const result = await response.json();
+      const transcription = result.text || '';
+
+      console.log('✅ Background: Audio transcribed successfully:', transcription);
+      sendResponse({ success: true, data: { text: transcription } });
+
+    } catch (error) {
+      console.error('❌ Background: Error in handleAudioTranscription:', error);
+      sendResponse({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      });
+    }
+  }
+
+  private async handleSpeechSynthesis(data: any, sendResponse: (response?: any) => void) {
+    try {
+      const { text, voice = 'alloy', speed = 1.0 } = data;
+      
+      // Get the stored API key
+      const config = await this.getConfig();
+      
+      if (!config.apiKey) {
+        sendResponse({ 
+          success: false, 
+          error: 'OpenAI API key not configured. Please set it in the extension settings.' 
+        });
+        return;
+      }
+
+      console.log('🔊 Background: Synthesizing speech with OpenAI TTS...');
+
+      // Call OpenAI TTS API
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: text,
+          voice: voice, // alloy, echo, fable, onyx, nova, shimmer
+          speed: speed,
+          response_format: 'mp3'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Background: TTS API error:', errorText);
+        
+        let errorMessage = 'Failed to synthesize speech';
+        if (response.status === 401) {
+          errorMessage = 'Invalid API key. Please check your OpenAI API key in settings.';
+        } else if (response.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please try again in a moment.';
+        }
+        
+        sendResponse({ success: false, error: errorMessage });
+        return;
+      }
+
+      // Convert response to blob
+      const audioBlob = await response.blob();
+      
+      // Convert blob to base64 for sending to content script
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Audio = reader.result as string;
+        console.log('✅ Background: Speech synthesized successfully');
+        sendResponse({ success: true, data: { audioData: base64Audio } });
+      };
+      reader.readAsDataURL(audioBlob);
+
+    } catch (error) {
+      console.error('❌ Background: Error in handleSpeechSynthesis:', error);
+      sendResponse({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      });
+    }
   }
 }
 
