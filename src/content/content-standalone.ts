@@ -21,6 +21,8 @@ class StandaloneAIInterviewer {
   private voiceEnabled: boolean = true;
   private voiceSpeed: number = 1.0; // 0.5 to 2.0
   private currentAudio: HTMLAudioElement | null = null;
+  private lastTranscriptionTime: number = 0;
+  private transcriptionCooldown: number = 2000; // 2 seconds between transcriptions
 
   constructor() {
     console.log('🚀 STANDALONE: StandaloneAIInterviewer constructor called');
@@ -377,10 +379,9 @@ class StandaloneAIInterviewer {
 
     console.log('✅ STANDALONE: Found injection container:', container);
 
-    // Test if styles are working
-    this.testStyles();
 
-    // Create interview interface with inline styles (CSP-compliant)
+
+    // Create interview interface with enhanced inline styles
     const interviewInterface = document.createElement('div');
     interviewInterface.id = 'leetmentor-standalone';
     
@@ -388,124 +389,155 @@ class StandaloneAIInterviewer {
     const difficulty = problem?.difficulty || 'Medium';
     const difficultyColor = this.getDifficultyColor(difficulty);
     
-    // Use inline styles instead of CSS classes for CSP compliance
+    // Enhanced UI with better visual hierarchy and modern design
     interviewInterface.innerHTML = `
       <div style="
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 16px;
-        padding: 24px;
-        margin: 20px 0;
+        border-radius: 20px;
+        padding: 0;
+        margin: 24px 0;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         color: white;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(20px);
         position: relative;
         z-index: 10000;
         transform: translateY(0);
         opacity: 1;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      ">
-        <div style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
         ">
-          <div style="
-            display: flex;
-            align-items: center;
-            gap: 12px;
-          ">
-            <div style="
-              font-size: 24px;
-              background: rgba(255, 255, 255, 0.2);
-              width: 48px;
-              height: 48px;
-              border-radius: 12px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              backdrop-filter: blur(10px);
-            ">🎯</div>
-            <div style="line-height: 1.2;">
-              <div style="
-                font-size: 20px;
-                font-weight: 700;
-                letter-spacing: -0.5px;
-                color: white;
-              ">LeetMentor</div>
-              <div style="
-                font-size: 12px;
-                opacity: 0.8;
-                font-weight: 500;
-                color: white;
-              ">AI Interview Assistant</div>
-            </div>
-          </div>
-          <div style="
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            color: white;
-          ">
-            <div style="
-              width: 8px;
-              height: 8px;
-              background: #22c55e;
-              border-radius: 50%;
-              animation: pulse 2s infinite;
-            "></div>
-            <span>Ready</span>
-          </div>
-        </div>
         
+        <!-- Header Section -->
         <div style="
           background: rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          padding: 16px;
-          margin-bottom: 20px;
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(20px);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 24px 28px;
+          position: relative;
         ">
           <div style="
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            line-height: 1.4;
-            color: white;
-          ">${problemTitle}</div>
-          <div style="
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: white;
-            background: ${difficultyColor};
-          ">${difficulty}</div>
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          ">
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 16px;
+            ">
+              <div style="
+                font-size: 28px;
+                background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+                width: 56px;
+                height: 56px;
+                border-radius: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+              ">🎯</div>
+              <div style="line-height: 1.3;">
+                <div style="
+                  font-size: 24px;
+                  font-weight: 800;
+                  letter-spacing: -0.5px;
+                  color: white;
+                  margin-bottom: 4px;
+                ">LeetMentor</div>
+                <div style="
+                  font-size: 13px;
+                  opacity: 0.9;
+                  font-weight: 500;
+                  color: rgba(255, 255, 255, 0.9);
+                  letter-spacing: 0.5px;
+                ">AI INTERVIEW ASSISTANT</div>
+              </div>
+            </div>
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              font-size: 14px;
+              font-weight: 600;
+              color: white;
+            ">
+              <div style="
+                width: 10px;
+                height: 10px;
+                background: #22c55e;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+                box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+              "></div>
+              <span style="letter-spacing: 0.5px;">READY</span>
+            </div>
+          </div>
         </div>
         
+        <!-- Problem Info Section -->
         <div style="
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 0;
+          padding: 20px 28px;
+          backdrop-filter: blur(10px);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        ">
+          <div style="
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            line-height: 1.4;
+            color: white;
+            letter-spacing: -0.3px;
+          ">${problemTitle}</div>
+          <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            border-radius: 25px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: white;
+            background: ${difficultyColor};
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+          ">
+            <div style="
+              width: 6px;
+              height: 6px;
+              background: white;
+              border-radius: 50%;
+              opacity: 0.8;
+            "></div>
+            ${difficulty}
+          </div>
+        </div>
+        
+        <!-- Action Buttons Section -->
+        <div style="
+          padding: 24px 28px;
           display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
+          gap: 16px;
+          align-items: center;
         ">
           <button id="start-interview-btn" style="
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
+            gap: 12px;
+            padding: 16px 24px;
             border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-decoration: none;
             min-width: 0;
             flex: 1;
@@ -513,232 +545,280 @@ class StandaloneAIInterviewer {
             font-family: inherit;
             background: linear-gradient(135deg, #22c55e, #16a34a);
             color: white;
-          " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0, 0, 0, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-            <span style="font-size: 16px;">🎤</span>
+            box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            letter-spacing: 0.3px;
+          " onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 12px 32px rgba(34, 197, 94, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(34, 197, 94, 0.3)'">
+            <span style="font-size: 18px;">🎤</span>
             Start Interview
           </button>
-          <button id="voice-test-btn" style="
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            min-width: 0;
-            flex: 1;
-            justify-content: center;
-            font-family: inherit;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            color: white;
-          " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0, 0, 0, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-            <span style="font-size: 16px;">🔊</span>
-            Test Voice
-          </button>
+          
           <button id="settings-btn" style="
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            padding: 12px;
+            padding: 16px;
             border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-decoration: none;
             min-width: 0;
             flex: 0 0 auto;
-            justify-content: center;
             font-family: inherit;
             background: rgba(255, 255, 255, 0.1);
             color: white;
             border: 1px solid rgba(255, 255, 255, 0.2);
-          " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0, 0, 0, 0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-            <span style="font-size: 16px;">⚙️</span>
+            backdrop-filter: blur(10px);
+          " onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.background='rgba(255, 255, 255, 0.1)'">
+            <span style="font-size: 18px;">⚙️</span>
           </button>
         </div>
         
+                <!-- Chat Interface (Hidden by default) -->
         <div id="chat-container" style="
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          overflow: hidden;
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 0;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(10px);
           display: none;
+          max-height: 800px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
         ">
+          <!-- Chat Header -->
           <div style="
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 16px 20px;
-            background: rgba(255, 255, 255, 0.1);
+            padding: 20px 28px;
+            background: rgba(255, 255, 255, 0.05);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           ">
             <div style="
-              font-size: 16px;
-              font-weight: 600;
-              color: white;
-            ">Interview Session</div>
-            <div style="display: flex; gap: 8px;">
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            ">
+              <div style="
+                width: 8px;
+                height: 8px;
+                background: #22c55e;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+              "></div>
+              <div style="
+                font-size: 16px;
+                font-weight: 700;
+                color: white;
+                letter-spacing: 0.3px;
+              ">Interview Session</div>
+            </div>
+            <div style="display: flex; gap: 12px;">
               <button id="clear-chat-btn" style="
                 background: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 color: white;
-                padding: 6px 12px;
-                border-radius: 6px;
-                font-size: 12px;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
                 cursor: pointer;
                 transition: all 0.2s ease;
-              " onmouseover="this.style.background='rgba(255, 255, 255, 0.2)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">Clear</button>
+                letter-spacing: 0.3px;
+              " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">Clear</button>
               <button id="export-chat-btn" style="
                 background: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 color: white;
-                padding: 6px 12px;
-                border-radius: 6px;
-                font-size: 12px;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
                 cursor: pointer;
                 transition: all 0.2s ease;
-              " onmouseover="this.style.background='rgba(255, 255, 255, 0.2)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">Export</button>
+                letter-spacing: 0.3px;
+              " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">Export</button>
             </div>
           </div>
+          
+          <!-- Chat Messages -->
           <div id="chat-messages" style="
-            max-height: 400px;
+            flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 24px 28px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 20px;
+            scroll-behavior: smooth;
+            min-height: 150px;
+            max-height: 500px;
           "></div>
+          
+          <!-- Chat Input Section -->
           <div style="
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.05);
+            padding: 24px 28px;
+            background: rgba(255, 255, 255, 0.02);
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
           ">
             <div style="
               display: flex;
-              gap: 12px;
+              gap: 16px;
               align-items: flex-end;
             ">
               <textarea id="user-input" style="
                 flex: 1;
-                background: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                border-radius: 12px;
-                padding: 12px 16px;
+                background: rgba(255, 255, 255, 0.08);
+                border: 2px solid rgba(255, 255, 255, 0.15);
+                border-radius: 16px;
+                padding: 16px 20px;
                 color: white;
-                font-size: 14px;
+                font-size: 15px;
                 font-family: inherit;
+                font-weight: 500;
                 resize: none;
-                min-height: 44px;
+                min-height: 52px;
                 max-height: 120px;
-                transition: all 0.2s ease;
-              " placeholder="Type your response or use voice..." rows="1" onfocus="this.style.borderColor='rgba(59, 130, 246, 0.5)'; this.style.background='rgba(255, 255, 255, 0.15)'" onblur="this.style.borderColor='rgba(255, 255, 255, 0.2)'; this.style.background='rgba(255, 255, 255, 0.1)'"></textarea>
+                transition: all 0.3s ease;
+                line-height: 1.5;
+              " placeholder="Type your response or use voice..." rows="1" onfocus="this.style.borderColor='rgba(59, 130, 246, 0.6)'; this.style.background='rgba(255, 255, 255, 0.12)'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)'" onblur="this.style.borderColor='rgba(255, 255, 255, 0.15)'; this.style.background='rgba(255, 255, 255, 0.08)'; this.style.boxShadow='none'"></textarea>
+              
               <button id="voice-record-btn" style="
                 background: linear-gradient(135deg, #8b5cf6, #7c3aed);
                 border: none;
-                border-radius: 12px;
-                width: 44px;
-                height: 44px;
+                border-radius: 16px;
+                width: 52px;
+                height: 52px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 flex-shrink: 0;
-              " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.3)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+                box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+              " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(139, 92, 246, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(139, 92, 246, 0.3)'">
                 <span style="
                   color: white;
-                  font-size: 16px;
+                  font-size: 18px;
                 ">🎤</span>
               </button>
+              
               <button id="send-btn" style="
                 background: linear-gradient(135deg, #22c55e, #16a34a);
                 border: none;
-                border-radius: 12px;
-                width: 44px;
-                height: 44px;
+                border-radius: 16px;
+                width: 52px;
+                height: 52px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 flex-shrink: 0;
-              " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(34, 197, 94, 0.3)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+                box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+              " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(34, 197, 94, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(34, 197, 94, 0.3)'">
                 <span style="
                   color: white;
-                  font-size: 16px;
+                  font-size: 18px;
                   font-weight: bold;
                 ">➤</span>
               </button>
             </div>
+            
+            <!-- Voice Controls -->
             <div style="
-              margin-top: 8px;
+              margin-top: 16px;
               display: flex;
               justify-content: space-between;
               align-items: center;
-              font-size: 12px;
-              opacity: 0.7;
+              font-size: 13px;
+              opacity: 0.8;
               color: white;
             ">
-              <div>Press Enter to send • Hold Spacebar for voice • Esc to unfocus input</div>
-              <button id="skip-voice-btn" style="
-                background: rgba(239, 68, 68, 0.2);
-                border: 1px solid rgba(239, 68, 68, 0.4);
-                color: white;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 10px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                display: none;
-              " onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'">⏭️ Skip Voice</button>
-              <div style="display: flex; gap: 4px; align-items: center;">
-                <button id="voice-speed-slow" style="
-                  background: rgba(255, 255, 255, 0.1);
-                  border: 1px solid rgba(255, 255, 255, 0.2);
+              <div style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-weight: 500;
+              ">
+                <span>💡</span>
+                <span>Press Enter to send • Hold Spacebar for voice • Esc to unfocus</span>
+              </div>
+              
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="skip-voice-btn" style="
+                  background: rgba(239, 68, 68, 0.2);
+                  border: 1px solid rgba(239, 68, 68, 0.4);
                   color: white;
-                  padding: 2px 6px;
-                  border-radius: 3px;
-                  font-size: 9px;
+                  padding: 6px 12px;
+                  border-radius: 8px;
+                  font-size: 11px;
+                  font-weight: 600;
                   cursor: pointer;
                   transition: all 0.2s ease;
-                " onmouseover="this.style.background='rgba(255, 255, 255, 0.2)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">0.5x</button>
-                <button id="voice-speed-normal" style="
-                  background: rgba(59, 130, 246, 0.3);
-                  border: 1px solid rgba(59, 130, 246, 0.5);
-                  color: white;
-                  padding: 2px 6px;
-                  border-radius: 3px;
-                  font-size: 9px;
-                  cursor: pointer;
-                  transition: all 0.2s ease;
-                " onmouseover="this.style.background='rgba(59, 130, 246, 0.4)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.3)'">1.0x</button>
-                <button id="voice-speed-fast" style="
-                  background: rgba(255, 255, 255, 0.1);
-                  border: 1px solid rgba(255, 255, 255, 0.2);
-                  color: white;
-                  padding: 2px 6px;
-                  border-radius: 3px;
-                  font-size: 9px;
-                  cursor: pointer;
-                  transition: all 0.2s ease;
-                " onmouseover="this.style.background='rgba(255, 255, 255, 0.2)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">1.5x</button>
-                <button id="voice-toggle-btn" style="
-                  background: rgba(255, 255, 255, 0.1);
-                  border: 1px solid rgba(255, 255, 255, 0.2);
-                  color: white;
-                  padding: 4px 8px;
-                  border-radius: 4px;
-                  font-size: 10px;
-                  cursor: pointer;
-                  transition: all 0.2s ease;
-                " onmouseover="this.style.background='rgba(255, 255, 255, 0.2)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">🔊 Voice ON</button>
+                  display: none;
+                  letter-spacing: 0.3px;
+                " onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'">⏭️ Skip Voice</button>
+                
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button id="voice-speed-slow" style="
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    letter-spacing: 0.3px;
+                  " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">0.5x</button>
+                  <button id="voice-speed-normal" style="
+                    background: rgba(59, 130, 246, 0.3);
+                    border: 1px solid rgba(59, 130, 246, 0.5);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    letter-spacing: 0.3px;
+                  " onmouseover="this.style.background='rgba(59, 130, 246, 0.4)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.3)'">1.0x</button>
+                  <button id="voice-speed-fast" style="
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    letter-spacing: 0.3px;
+                  " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">1.5x</button>
+                  <button id="voice-toggle-btn" style="
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 6px 12px;
+                    border-radius: 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    letter-spacing: 0.3px;
+                  " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">🔊 Voice ON</button>
+                </div>
               </div>
             </div>
           </div>
@@ -748,6 +828,16 @@ class StandaloneAIInterviewer {
 
     container.insertBefore(interviewInterface, container.firstChild);
     console.log('✅ STANDALONE: Interview interface injected successfully!');
+    
+    // Add entrance animation
+    interviewInterface.style.opacity = '0';
+    interviewInterface.style.transform = 'translateY(20px) scale(0.95)';
+    
+    setTimeout(() => {
+      interviewInterface.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+      interviewInterface.style.opacity = '1';
+      interviewInterface.style.transform = 'translateY(0) scale(1)';
+    }, 100);
     
     this.isInjected = true;
     
@@ -849,9 +939,10 @@ class StandaloneAIInterviewer {
     const startBtn = document.getElementById('start-interview-btn');
     
     if (chatContainer && startBtn) {
-      chatContainer.style.display = 'block';
-      startBtn.textContent = 'Interview Active';
+      chatContainer.style.display = 'flex';
+      startBtn.innerHTML = '<span style="font-size: 18px;">🎯</span>Interview Active';
       startBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      startBtn.style.boxShadow = '0 8px 24px rgba(245, 158, 11, 0.4)';
       this.isInterviewActive = true;
       
       // Add welcome message (don't read this one aloud)
@@ -859,6 +950,11 @@ class StandaloneAIInterviewer {
       
       // Setup chat input
       this.setupChatInput();
+      
+      // Ensure input area is visible
+      setTimeout(() => {
+        this.ensureInputVisible();
+      }, 500);
     }
   }
 
@@ -1061,39 +1157,61 @@ class StandaloneAIInterviewer {
 
   private showNotification(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
     const notification = document.createElement('div');
+    
+    const colors = {
+      success: { bg: '#22c55e', border: '#16a34a', icon: '✅' },
+      error: { bg: '#ef4444', border: '#dc2626', icon: '❌' },
+      warning: { bg: '#f59e0b', border: '#d97706', icon: '⚠️' },
+      info: { bg: '#3b82f6', border: '#2563eb', icon: 'ℹ️' }
+    };
+    
+    const color = colors[type];
+    
     notification.style.cssText = `
       position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6'};
+      top: 24px;
+      right: 24px;
+      background: linear-gradient(135deg, ${color.bg}, ${color.border});
       color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
+      padding: 16px 20px;
+      border-radius: 12px;
       font-size: 14px;
-      font-weight: 500;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
+      font-weight: 600;
+      z-index: 10001;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      transform: translateX(100%) scale(0.9);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      max-width: 400px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: 0.3px;
     `;
-    notification.textContent = message;
+    
+    notification.innerHTML = `
+      <span style="font-size: 16px;">${color.icon}</span>
+      <span>${message}</span>
+    `;
     
     document.body.appendChild(notification);
     
     // Animate in
     setTimeout(() => {
-      notification.style.transform = 'translateX(0)';
+      notification.style.transform = 'translateX(0) scale(1)';
     }, 100);
     
-    // Remove after 3 seconds
+    // Remove after 4 seconds
     setTimeout(() => {
-      notification.style.transform = 'translateX(100%)';
+      notification.style.transform = 'translateX(100%) scale(0.9)';
+      notification.style.opacity = '0';
       setTimeout(() => {
         if (notification.parentNode) {
           notification.parentNode.removeChild(notification);
         }
-      }, 300);
-    }, 3000);
+      }, 400);
+    }, 4000);
   }
 
   private async handleUserMessage(message: string) {
@@ -1218,52 +1336,59 @@ class StandaloneAIInterviewer {
       typingDiv.id = 'typing-indicator';
       typingDiv.style.cssText = `
         display: flex;
-        gap: 12px;
-        animation: messageSlideIn 0.3s ease;
+        gap: 16px;
+        animation: messageSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-bottom: 8px;
       `;
       typingDiv.innerHTML = `
         <div style="
-          width: 32px;
-          height: 32px;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 14px;
+          font-size: 16px;
           flex-shrink: 0;
           background: linear-gradient(135deg, #3b82f6, #2563eb);
+          box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.2);
         ">🤖</div>
         <div style="
           display: flex;
-          gap: 4px;
-          padding: 12px 16px;
-          background: rgba(59, 130, 246, 0.2);
-          border-radius: 12px;
-          border: 1px solid rgba(59, 130, 246, 0.3);
+          gap: 6px;
+          padding: 16px 20px;
+          background: rgba(59, 130, 246, 0.15);
+          border-radius: 16px;
+          border: 1px solid rgba(59, 130, 246, 0.25);
           width: fit-content;
+          backdrop-filter: blur(10px);
         ">
           <div style="
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             background: white;
             border-radius: 50%;
-            animation: typing 1.4s infinite ease-in-out;
+            animation: typing 1.6s infinite ease-in-out;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           "></div>
           <div style="
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             background: white;
             border-radius: 50%;
-            animation: typing 1.4s infinite ease-in-out;
-            animation-delay: -0.16s;
+            animation: typing 1.6s infinite ease-in-out;
+            animation-delay: -0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           "></div>
           <div style="
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             background: white;
             border-radius: 50%;
-            animation: typing 1.4s infinite ease-in-out;
-            animation-delay: -0.32s;
+            animation: typing 1.6s infinite ease-in-out;
+            animation-delay: -0.4s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           "></div>
         </div>
       `;
@@ -1285,41 +1410,66 @@ class StandaloneAIInterviewer {
       const messageDiv = document.createElement('div');
       messageDiv.style.cssText = `
         display: flex;
-        gap: 12px;
-        animation: messageSlideIn 0.3s ease;
+        gap: 16px;
+        animation: messageSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-bottom: 8px;
       `;
       
       const avatar = role === 'user' ? '👤' : '🤖';
       const avatarBg = role === 'user' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #3b82f6, #2563eb)';
-      const messageBg = role === 'user' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(59, 130, 246, 0.2)';
-      const messageBorder = role === 'user' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+      const messageBg = role === 'user' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+      const messageBorder = role === 'user' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(59, 130, 246, 0.25)';
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       messageDiv.innerHTML = `
         <div style="
-          width: 32px;
-          height: 32px;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 14px;
+          font-size: 16px;
           flex-shrink: 0;
           background: ${avatarBg};
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.2);
         ">${avatar}</div>
         <div style="
           flex: 1;
           background: ${messageBg};
           border: 1px solid ${messageBorder};
-          padding: 12px 16px;
-          border-radius: 12px;
-          line-height: 1.5;
-          font-size: 14px;
+          padding: 16px 20px;
+          border-radius: 16px;
+          line-height: 1.6;
+          font-size: 15px;
           color: white;
-        ">${message}</div>
+          backdrop-filter: blur(10px);
+          position: relative;
+        ">
+          <div style="
+            margin-bottom: 8px;
+            font-size: 12px;
+            opacity: 0.7;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+          ">${role === 'user' ? 'You' : 'AI Interviewer'} • ${timestamp}</div>
+          <div style="
+            white-space: pre-wrap;
+            word-wrap: break-word;
+          ">${message}</div>
+        </div>
       `;
       
       chatMessages.appendChild(messageDiv);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      
+      // Ensure the input area is visible after adding a message
+      setTimeout(() => {
+        const chatContainer = document.getElementById('chat-container');
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      }, 100);
     }
   }
 
@@ -1334,42 +1484,120 @@ class StandaloneAIInterviewer {
       return "Perfect! Now let's implement this solution. Go ahead and write the code in the LeetCode editor.";
     } else if (message.includes('implement') || message.includes('code')) {
       return "Great! Once you've written the code, test it with the examples. What do you think the output should be?";
+    } else if (message.includes('api') || message.includes('quota') || message.includes('billing')) {
+      return "I see you're having API issues. Don't worry! You can continue the interview by typing your responses. The voice features will be available once the API quota is resolved. What would you like to discuss about the problem?";
     } else {
       return "That's a good point! Let's continue with the interview. What's your next step?";
     }
   }
 
-  private testStyles() {
-    console.log('🧪 STANDALONE: Testing styles...');
+  // private testStyles() {
+  //   console.log('🧪 STANDALONE: Testing styles...');
     
-    // Create a simple test element
-    const testElement = document.createElement('div');
-    testElement.id = 'lm-style-test';
-    testElement.style.cssText = `
-      position: fixed !important;
-      top: 10px !important;
-      right: 10px !important;
-      background: linear-gradient(135deg, #ff6b6b, #ee5a24) !important;
-      color: white !important;
-      padding: 10px !important;
-      border-radius: 8px !important;
-      font-family: Arial, sans-serif !important;
-      font-size: 12px !important;
-      z-index: 10001 !important;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-    `;
-    testElement.textContent = '🎨 Styles Working!';
+  //   // Create a simple test element
+  //   const testElement = document.createElement('div');
+  //   testElement.id = 'lm-style-test';
+  //   testElement.style.cssText = `
+  //     position: fixed !important;
+  //     top: 10px !important;
+  //     right: 10px !important;
+  //     background: linear-gradient(135deg, #ff6b6b, #ee5a24) !important;
+  //     color: white !important;
+  //     padding: 10px !important;
+  //     border-radius: 8px !important;
+  //     font-family: Arial, sans-serif !important;
+  //     font-size: 12px !important;
+  //     z-index: 10001 !important;
+  //     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  //   `;
+  //   testElement.textContent = '🎨 Styles Working!';
     
-    document.body.appendChild(testElement);
+  //   document.body.appendChild(testElement);
     
-    // Remove after 3 seconds
-    setTimeout(() => {
-      if (testElement.parentNode) {
-        testElement.parentNode.removeChild(testElement);
+  //   // Remove after 3 seconds
+  //   setTimeout(() => {
+  //     if (testElement.parentNode) {
+  //       testElement.parentNode.removeChild(testElement);
+  //     }
+  //   }, 3000);
+    
+  //   console.log('🧪 STANDALONE: Style test element added');
+  // }
+
+  private addAnimations() {
+    console.log('🎬 STANDALONE: Adding CSS animations...');
+    
+    // Create style element for animations
+    const styleElement = document.createElement('style');
+    styleElement.id = 'leetmentor-animations';
+    styleElement.textContent = `
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
       }
-    }, 3000);
+      
+      @keyframes typing {
+        0%, 80%, 100% { 
+          transform: scale(0.8);
+          opacity: 0.5;
+        }
+        40% { 
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes messageSlideIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      
+      @keyframes slideInFromRight {
+        from {
+          opacity: 0;
+          transform: translateX(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+      
+      @keyframes bounce {
+        0%, 20%, 53%, 80%, 100% {
+          transform: translate3d(0,0,0);
+        }
+        40%, 43% {
+          transform: translate3d(0, -8px, 0);
+        }
+        70% {
+          transform: translate3d(0, -4px, 0);
+        }
+        90% {
+          transform: translate3d(0, -2px, 0);
+        }
+      }
+    `;
     
-    console.log('🧪 STANDALONE: Style test element added');
+    document.head.appendChild(styleElement);
+    console.log('🎬 STANDALONE: CSS animations added');
   }
 
   private setupSubmissionMonitor() {
@@ -1539,6 +1767,7 @@ class StandaloneAIInterviewer {
       });
       
       this.audioChunks = [];
+      const recordingStartTime = Date.now();
       
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -1548,6 +1777,15 @@ class StandaloneAIInterviewer {
       
       this.mediaRecorder.onstop = async () => {
         console.log('🎤 STANDALONE: Recording stopped, processing audio...');
+        const recordingDuration = (Date.now() - recordingStartTime) / 1000;
+        
+        // Check minimum recording duration
+        if (recordingDuration < 0.5) {
+          this.showNotification('🎤 Recording too short. Please hold longer for voice input.', 'warning');
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
         const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
         await this.processVoiceInput(audioBlob);
         
@@ -1560,12 +1798,14 @@ class StandaloneAIInterviewer {
       
       // Update button appearance
       if (voiceBtn) {
-        voiceBtn.innerHTML = '<span style="color: white; font-size: 16px;">⏹️</span>';
+        voiceBtn.innerHTML = '<span style="color: white; font-size: 18px;">⏹️</span>';
         voiceBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
-        voiceBtn.style.animation = 'pulse 1s infinite';
+        voiceBtn.style.boxShadow = '0 8px 24px rgba(239, 68, 68, 0.4)';
+        voiceBtn.style.animation = 'pulse 1.5s infinite';
+        voiceBtn.style.transform = 'scale(1.05)';
       }
       
-      this.showNotification('🎤 Recording... Release Spacebar to stop', 'info');
+      this.showNotification('🎤 Recording... Hold Spacebar for at least 0.5 seconds', 'info');
       
     } catch (error) {
       console.error('❌ STANDALONE: Error starting recording:', error);
@@ -1582,9 +1822,11 @@ class StandaloneAIInterviewer {
       
       const voiceBtn = document.getElementById('voice-record-btn') as HTMLButtonElement;
       if (voiceBtn) {
-        voiceBtn.innerHTML = '<span style="color: white; font-size: 16px;">🎤</span>';
+        voiceBtn.innerHTML = '<span style="color: white; font-size: 18px;">🎤</span>';
         voiceBtn.style.background = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+        voiceBtn.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.3)';
         voiceBtn.style.animation = 'none';
+        voiceBtn.style.transform = 'scale(1)';
       }
       
       this.showNotification('🔄 Processing speech...', 'info');
@@ -1595,10 +1837,27 @@ class StandaloneAIInterviewer {
     try {
       console.log('🔄 STANDALONE: Processing voice input...');
       
+      // Check rate limiting
+      const now = Date.now();
+      if (now - this.lastTranscriptionTime < this.transcriptionCooldown) {
+        const remainingTime = Math.ceil((this.transcriptionCooldown - (now - this.lastTranscriptionTime)) / 1000);
+        this.showNotification(`⏳ Please wait ${remainingTime} seconds before trying again`, 'warning');
+        return;
+      }
+      
+      // Check audio length (minimum 0.5 seconds)
+      const audioDuration = audioBlob.size / 16000; // Rough estimate
+      if (audioDuration < 0.5) {
+        this.showNotification('🎤 Recording too short. Please hold longer for voice input.', 'warning');
+        return;
+      }
+      
+      this.lastTranscriptionTime = now;
+      
       // Send to background script for Whisper transcription
       const response = await this.transcribeAudio(audioBlob);
       
-      if (response && response.text) {
+      if (response && response.text && response.text.trim()) {
         console.log('✅ STANDALONE: Transcription successful:', response.text);
         
         // Add transcribed text to input field and auto-send
@@ -1615,12 +1874,23 @@ class StandaloneAIInterviewer {
           }, 500); // Small delay to show the transcription briefly
         }
       } else {
-        throw new Error('No transcription received');
+        throw new Error('No transcription received or empty result');
       }
       
     } catch (error) {
       console.error('❌ STANDALONE: Error processing voice input:', error);
-      this.showNotification('❌ Failed to process speech. Please try again.', 'error');
+      
+      // Handle specific error types
+      const errorMessage = error.toString();
+      if (errorMessage.includes('insufficient_quota') || errorMessage.includes('quota')) {
+        this.showNotification('💳 API quota exceeded. Please check your OpenAI billing.', 'error');
+      } else if (errorMessage.includes('audio_too_short')) {
+        this.showNotification('🎤 Recording too short. Please hold longer for voice input.', 'warning');
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('Rate limit')) {
+        this.showNotification('⏳ Rate limit exceeded. Please wait a moment before trying again.', 'warning');
+      } else {
+        this.showNotification('❌ Failed to process speech. Please try again.', 'error');
+      }
     }
   }
 
@@ -1762,12 +2032,16 @@ class StandaloneAIInterviewer {
     const voiceToggleBtn = document.getElementById('voice-toggle-btn');
     if (voiceToggleBtn) {
       if (this.voiceEnabled) {
-        voiceToggleBtn.textContent = '🔊 Voice ON';
-        voiceToggleBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+        voiceToggleBtn.innerHTML = '🔊 Voice ON';
+        voiceToggleBtn.style.background = 'rgba(34, 197, 94, 0.2)';
+        voiceToggleBtn.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+        voiceToggleBtn.style.color = '#22c55e';
         this.showNotification('🔊 Voice responses enabled', 'success');
       } else {
-        voiceToggleBtn.textContent = '🔇 Voice OFF';
-        voiceToggleBtn.style.background = 'rgba(255, 100, 100, 0.3)';
+        voiceToggleBtn.innerHTML = '🔇 Voice OFF';
+        voiceToggleBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+        voiceToggleBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+        voiceToggleBtn.style.color = '#ef4444';
         this.showNotification('🔇 Voice responses disabled', 'info');
       }
     }
@@ -1812,6 +2086,25 @@ class StandaloneAIInterviewer {
     const inputTypes = ['input', 'textarea', 'select'];
     return inputTypes.includes(activeElement.tagName.toLowerCase()) || 
            activeElement.getAttribute('contenteditable') === 'true';
+  }
+
+  private ensureInputVisible() {
+    const chatContainer = document.getElementById('chat-container');
+    const userInput = document.getElementById('user-input') as HTMLTextAreaElement;
+    
+    if (chatContainer && userInput) {
+      // Scroll to the input area
+      userInput.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end',
+        inline: 'nearest'
+      });
+      
+      // Also ensure the chat container shows the bottom
+      setTimeout(() => {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }, 100);
+    }
   }
 }
 
