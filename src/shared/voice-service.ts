@@ -395,20 +395,23 @@ export class VoiceService {
   private async speakWithBrowser(text: string, settings: VoiceSettings): Promise<void> {
     return new Promise((resolve, reject) => {
       const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Configure voice settings for more natural speech
-      utterance.rate = settings.rate || 1.1; // Slightly faster for more natural flow
-      utterance.pitch = settings.pitch || 1.2; // Higher pitch for female voice
-      utterance.volume = settings.volume || 0.9;
+
+      // Configure voice settings for more natural conversational speech
+      utterance.rate = (settings.rate || 1.0) * this.speechRate; // Apply speech rate multiplier
+      utterance.pitch = settings.pitch || 1.1; // Slightly higher pitch for conversational tone
+      utterance.volume = settings.volume || 0.85; // Slightly lower volume for natural conversation
       utterance.lang = settings.language || 'en-US';
 
-      // Find the best female US voice
-      const femaleVoice = this.findBestFemaleVoice();
-      if (femaleVoice) {
-        utterance.voice = femaleVoice;
-        console.log('🎤 Using female voice:', femaleVoice.name);
+      // Add natural speech patterns
+      utterance.rate = Math.min(utterance.rate, 1.3); // Cap rate for clarity in conversations
+
+      // Find the best professional female voice for interviewer experience
+      const interviewerVoice = this.findBestVoice();
+      if (interviewerVoice) {
+        utterance.voice = interviewerVoice;
+        console.log('🎤 Using interviewer voice:', interviewerVoice.name);
       } else {
-        console.log('🎤 No female voice found, using default');
+        console.log('🎤 No suitable interviewer voice found, using default');
       }
 
       utterance.onstart = () => {
@@ -431,20 +434,20 @@ export class VoiceService {
     });
   }
 
-  private findBestFemaleVoice(): SpeechSynthesisVoice | null {
-    // Preferred female US voices in order of preference
+  private findBestVoice(): SpeechSynthesisVoice | null {
+    // Preferred professional female voices for interviewer experience
     const preferredFemaleVoices = [
-      'Samantha', // macOS
-      'Susan', // macOS  
-      'Victoria', // macOS
-      'Karen', // macOS
-      'Microsoft Zira - English (United States)', // Windows
-      'Microsoft Eva - English (United States)', // Windows
-      'Google US English Female', // Chrome
-      'en-US-Female' // Generic
+      'Samantha', // macOS - professional female voice
+      'Susan', // macOS - warm female voice
+      'Victoria', // macOS - clear female voice
+      'Karen', // macOS - professional female
+      'Microsoft Zira - English (United States)', // Windows - natural female
+      'Microsoft Eva - English (United States)', // Windows - clear female
+      'Google US English Female', // Chrome - natural female
+      'en-US-Female' // Generic female
     ];
 
-    // First try to find exact matches
+    // First try to find exact matches for professional female voices
     for (const voiceName of preferredFemaleVoices) {
       const voice = this.voices.find(v => v.name === voiceName);
       if (voice) {
@@ -453,9 +456,9 @@ export class VoiceService {
     }
 
     // If no exact match, find any female-sounding US voice
-    const femaleKeywords = ['female', 'woman', 'samantha', 'susan', 'karen', 'zira', 'eva'];
-    const femaleVoice = this.voices.find(v => 
-      v.lang.startsWith('en-US') && 
+    const femaleKeywords = ['female', 'woman', 'samantha', 'susan', 'karen', 'zira', 'eva', 'victoria'];
+    const femaleVoice = this.voices.find(v =>
+      v.lang.startsWith('en-US') &&
       femaleKeywords.some(keyword => v.name.toLowerCase().includes(keyword))
     );
 
@@ -463,7 +466,19 @@ export class VoiceService {
       return femaleVoice;
     }
 
-    // Fallback to any US voice
+    // Fallback to any US voice that sounds professional
+    const professionalVoice = this.voices.find(v =>
+      v.lang.startsWith('en-US') &&
+      !v.name.toLowerCase().includes('male') &&
+      !v.name.toLowerCase().includes('man') &&
+      !v.name.toLowerCase().includes('boy')
+    );
+
+    if (professionalVoice) {
+      return professionalVoice;
+    }
+
+    // Final fallback to any US voice
     return this.voices.find(v => v.lang.startsWith('en-US')) || null;
   }
 
@@ -523,19 +538,19 @@ export class VoiceService {
   }
 
   private getOpenAIVoice(language: string): string {
-    // Map language to best OpenAI voice for conversational experience
+    // Map language to best OpenAI female voice for natural interviewer experience
     const voiceMap: Record<string, string> = {
-      'en-US': 'nova',    // Female, warm, American voice - most natural
+      'en-US': 'nova',    // Female, warm, American voice - most natural for interviews
       'en-GB': 'echo',    // British accent
       'es-ES': 'nova',    // Works well for Spanish
       'fr-FR': 'shimmer', // Good for French
-      'de-DE': 'onyx',    // Deep voice for German
-      'zh-CN': 'alloy',   // Works for Chinese
+      'de-DE': 'onyx',    // Professional for German
+      'zh-CN': 'alloy',   // Professional for Chinese
       'ja-JP': 'shimmer', // Good for Japanese
       'ko-KR': 'nova'     // Good for Korean
     };
 
-    return voiceMap[language] || 'nova'; // Default to nova (female, American)
+    return voiceMap[language] || 'nova'; // Default to nova (female, natural voice)
   }
 
   stopSpeaking() {

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeetMentor React Test Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'leetcode': {
+                            50: '#fef7ee',
+                            100: '#fdedd6',
+                            200: '#fad7ac',
+                            300: '#f6b777',
+                            400: '#f08d40',
+                            500: '#ec6d1a',
+                            600: '#dd5210',
+                            700: '#b73d10',
+                            800: '#923215',
+                            900: '#762b14',
+                        },
+                        'accent': {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-gentle': 'bounce 2s infinite',
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="max-w-6xl mx-auto p-4">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">⚛️ LeetMentor React Test Interface</h1>
+            <p class="text-gray-600 mb-4">Test your actual React components with live changes!</p>
+
+            <div class="flex gap-4 mb-6">
+                <button id="reload-components" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                    🔄 Reload Components
+                </button>
+                <button id="test-props" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+                    🧪 Test Different Props
+                </button>
+                <button id="manual-init" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors">
+                    🔧 Manual Init
+                </button>
+                <div class="text-sm text-gray-500 py-2">
+                    💡 Changes to .tsx files will be reflected after build
+                </div>
+            </div>
+
+            <!-- Build Status -->
+            <div id="build-status" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div class="flex items-center gap-2 text-yellow-800">
+                    <div class="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                    <span class="font-medium">Build Required</span>
+                </div>
+                <p class="text-yellow-700 mt-1">Run <code class="bg-yellow-100 px-2 py-1 rounded">npm run build:standalone</code> to see your React component changes</p>
+            </div>
+        </div>
+
+        <!-- Live Preview Area -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">👁️ React Component Preview</h2>
+
+            <!-- Mock LeetCode Problem Container -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">📝 Mock Problem Data</h3>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Title:</strong> <span id="mock-title">Two Sum</span></div>
+                    <div><strong>Difficulty:</strong> <span id="mock-difficulty">Easy</span></div>
+                    <div><strong>Slug:</strong> <span id="mock-slug">two-sum</span></div>
+                    <div><strong>Status:</strong> <span id="mock-status">Ready</span></div>
+                </div>
+            </div>
+
+            <!-- React Components Container -->
+            <div id="react-root" class="border-2 border-dashed border-gray-300 rounded-lg min-h-96 p-4">
+                <div class="text-center text-gray-500">
+                    <div class="text-4xl mb-4">⚛️</div>
+                    <p class="font-semibold">React components will render here</p>
+                    <p class="text-sm mt-2">Using test problem: <strong>Two Sum (Easy)</strong></p>
+                    <p class="text-sm mt-1">Loading your actual React components...</p>
+                    <div class="mt-4 flex justify-center">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                    </div>
+                    <p class="text-xs mt-4 text-orange-600">
+                        💡 <strong>Tip:</strong> Run <code class="bg-orange-100 px-1 rounded">npm run dev:full</code> for live changes!
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Development Notes -->
+        <div class="bg-blue-50 rounded-lg p-6 mt-6">
+            <h3 class="text-lg font-semibold text-blue-800 mb-3">🚀 Development Workflow</h3>
+            <div class="space-y-2 text-blue-700">
+                <p><strong>1. Edit Components:</strong> Modify .tsx files in <code>src/content/components/</code></p>
+                <p><strong>2. Build:</strong> Run <code>npm run build:standalone</code></p>
+                <p><strong>3. Test:</strong> Refresh this page to see changes</p>
+                <p><strong>4. Iterate:</strong> Repeat steps 1-3 for rapid development</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('⚛️ React Test Interface Loading...');
+
+        let currentProblem = {
+            id: 'two-sum',
+            title: 'Two Sum',
+            titleSlug: 'two-sum',
+            difficulty: 'Easy',
+            description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+            url: 'https://leetcode.com/problems/two-sum/'
+        };
+
+        // Test different problems
+        const testProblems = [
+            {
+                id: 'two-sum',
+                title: 'Two Sum',
+                titleSlug: 'two-sum',
+                difficulty: 'Easy'
+            },
+            {
+                id: 'merge-intervals',
+                title: 'Merge Intervals',
+                titleSlug: 'merge-intervals',
+                difficulty: 'Medium'
+            },
+            {
+                id: 'trapping-rain-water',
+                title: 'Trapping Rain Water',
+                titleSlug: 'trapping-rain-water',
+                difficulty: 'Hard'
+            }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('📄 DOM Content Loaded');
+
+            // Reload components button
+            const reloadBtn = document.getElementById('reload-components');
+            if (reloadBtn) {
+                reloadBtn.addEventListener('click', () => {
+                    console.log('🔄 Reloading components...');
+                    window.location.reload();
+                });
+            }
+
+            // Test props button
+            const testPropsBtn = document.getElementById('test-props');
+            if (testPropsBtn) {
+                testPropsBtn.addEventListener('click', () => {
+                    console.log('🧪 Testing different props...');
+
+                    // Cycle through test problems
+                    const currentIndex = testProblems.findIndex(p => p.id === currentProblem.id);
+                    const nextIndex = (currentIndex + 1) % testProblems.length;
+                    currentProblem = testProblems[nextIndex];
+
+                    // Update UI
+                    document.getElementById('mock-title').textContent = currentProblem.title;
+                    document.getElementById('mock-difficulty').textContent = currentProblem.difficulty;
+                    document.getElementById('mock-slug').textContent = currentProblem.titleSlug;
+                    document.getElementById('mock-status').textContent =
+                        currentProblem.difficulty === 'Easy' ? 'Ready' :
+                        currentProblem.difficulty === 'Medium' ? 'Active' : 'Paused';
+
+                    console.log('✅ Switched to problem:', currentProblem.title);
+
+                    // If React components are loaded, update them
+                    if (window.updateReactProblem) {
+                        window.updateReactProblem(currentProblem);
+                    }
+                });
+            }
+
+            // Manual init button
+            const manualInitBtn = document.getElementById('manual-init');
+            if (manualInitBtn) {
+                manualInitBtn.addEventListener('click', () => {
+                    console.log('🔧 Manual initialization triggered...');
+
+                    // Check if script is already loaded
+                    const existingScript = document.querySelector('script[src="content-standalone.js"]');
+                    if (existingScript) {
+                        console.log('Script already exists, checking initialization...');
+                    } else {
+                        console.log('Script not found, loading manually...');
+                        loadScript('content-standalone.js').then(() => {
+                            console.log('Manual script load completed');
+                        }).catch(error => {
+                            console.error('Manual script load failed:', error);
+                        });
+                    }
+
+                    // Try to manually initialize if script exists
+                    setTimeout(() => {
+                        console.log('🔍 Checking after manual init...');
+                        console.log('leetmentorTestInstance:', window.leetmentorTestInstance);
+                        console.log('leetmentorStandaloneReact:', window.leetmentorStandaloneReact);
+
+                        // Try to manually create test instance
+                        if (!window.leetmentorTestInstance && window.location.href.includes('react-test.html')) {
+                            console.log('🚨 Attempting manual test instance creation...');
+
+                            // Try multiple methods to access the class
+                            let StandaloneReactInterviewer = null;
+
+                            // Method 1: Check global scope
+                            if (window.StandaloneReactInterviewer) {
+                                console.log('✅ Method 1: Found in global scope');
+                                StandaloneReactInterviewer = window.StandaloneReactInterviewer;
+                            }
+                            // Method 2: Check webpack chunks
+                            else if (window.webpackChunkleetmentor && window.webpackChunkleetmentor.length > 0) {
+                                console.log('🔍 Method 2: Searching webpack chunks...');
+                                try {
+                                    // Find the module that exports the class
+                                    const chunks = window.webpackChunkleetmentor;
+                                    for (const chunk of chunks) {
+                                        if (chunk && chunk[1] && Array.isArray(chunk[1])) {
+                                            for (const module of chunk[1]) {
+                                                if (typeof module === 'function') {
+                                                    try {
+                                                        const result = module();
+                                                        if (result && typeof result.default === 'function' && result.default.name === 'StandaloneReactInterviewer') {
+                                                            console.log('✅ Method 2: Found class in webpack chunk');
+                                                            StandaloneReactInterviewer = result.default;
+                                                            break;
+                                                        }
+                                                    } catch (e) {
+                                                        // Ignore errors from trying to execute modules
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (StandaloneReactInterviewer) break;
+                                    }
+                                } catch (e) {
+                                    console.log('Method 2 failed:', e.message);
+                                }
+                            }
+                            // Method 3: Try to find in window properties
+                            else {
+                                console.log('🔍 Method 3: Searching window properties...');
+                                const possibleNames = ['StandaloneReactInterviewer', 'p', 'StandaloneAIInterviewer'];
+                                for (const name of possibleNames) {
+                                    if (window[name] && typeof window[name] === 'function') {
+                                        console.log('✅ Method 3: Found class as window.' + name);
+                                        StandaloneReactInterviewer = window[name];
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Try to create instance if we found the class
+                            if (StandaloneReactInterviewer) {
+                                try {
+                                    console.log('Creating test instance...');
+                                    window.leetmentorTestInstance = new StandaloneReactInterviewer();
+                                    console.log('✅ Manual instance created successfully!');
+                                } catch (e) {
+                                    console.error('❌ Failed to create instance:', e);
+                                    console.error('Error details:', e.stack);
+                                }
+                            } else {
+                                console.log('❌ Could not find StandaloneReactInterviewer class');
+                                console.log('Available window properties:', Object.keys(window).filter(key => key.toLowerCase().includes('standalone') || key.toLowerCase().includes('react')));
+
+                                // Add manual initialization button
+                                setTimeout(() => {
+                                    addManualInitButton();
+                                }, 1000);
+                            }
+                        }
+                    }, 1000);
+                });
+            }
+
+            // Try to load React components
+            loadReactComponents();
+        });
+
+        function loadReactComponents() {
+            console.log('🔄 Attempting to load React components...');
+
+            // Check if the built standalone script exists
+            fetch('content-standalone.js')
+                .then(response => {
+                    console.log('📡 Fetch response status:', response.status, response.ok);
+                    if (response.ok) {
+                        console.log('✅ Found built standalone script');
+                        document.getElementById('build-status').innerHTML = `
+                            <div class="flex items-center gap-2 text-green-800">
+                                <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                                <span class="font-medium">Build Found</span>
+                            </div>
+                            <p class="text-green-700 mt-1">Standalone script is ready! Components should load below.</p>
+                        `;
+
+                        console.log('🔧 About to load script...');
+                        // Load the built script
+                        return loadScript('content-standalone.js');
+                    } else {
+                        console.error('❌ Script fetch failed with status:', response.status);
+                        throw new Error('Script not found - status: ' + response.status);
+                    }
+                })
+                .then(() => {
+                    console.log('✅ React components loaded successfully');
+
+                    // Check URL detection
+                    console.log('🔍 URL Analysis:');
+                    console.log('Current URL:', window.location.href);
+                    console.log('Includes react-test.html:', window.location.href.includes('react-test.html'));
+                    console.log('Includes localhost:', window.location.href.includes('localhost'));
+
+                    console.log('🔍 Checking if React components initialized...');
+                    console.log('leetmentorTestInstance:', window.leetmentorTestInstance);
+                    console.log('leetmentorStandaloneReact:', window.leetmentorStandaloneReact);
+
+                    // Check if the React root was updated
+                    setTimeout(() => {
+                        const reactRoot = document.getElementById('react-root');
+                        console.log('React root element:', reactRoot);
+                        if (reactRoot) {
+                            console.log('React root children:', reactRoot.children.length);
+                            console.log('React root innerHTML:', reactRoot.innerHTML.substring(0, 300) + '...');
+
+                            // Try to manually trigger test mode if not working
+                            if (!window.leetmentorTestInstance && window.location.href.includes('react-test.html')) {
+                                console.log('🚨 TEST MODE FAILED - Attempting manual initialization...');
+                                try {
+                                    // Check if StandaloneReactInterviewer class is available
+                                    console.log('StandaloneReactInterviewer available:', typeof window.StandaloneReactInterviewer);
+
+                                    // Try to access the webpack module
+                                    if (window.webpackChunkleetmentor) {
+                                        console.log('Webpack chunks available:', Object.keys(window.webpackChunkleetmentor));
+                                    }
+                                } catch (e) {
+                                    console.error('Manual initialization error:', e);
+                                }
+                            }
+                        }
+                    }, 2000);
+
+                    // Also check immediately
+                    setTimeout(() => {
+                        console.log('🔍 IMMEDIATE CHECK:');
+                        console.log('leetmentorTestInstance:', window.leetmentorTestInstance);
+                        console.log('leetmentorStandaloneReact:', window.leetmentorStandaloneReact);
+                    }, 100);
+                })
+                .catch(error => {
+                    console.error('❌ Could not load React components:', error);
+                    console.error('Error details:', error.stack);
+                    document.getElementById('build-status').innerHTML = `
+                        <div class="flex items-center gap-2 text-red-800">
+                            <div class="w-2 h-2 bg-red-400 rounded-full"></div>
+                            <span class="font-medium">Error Loading</span>
+                        </div>
+                        <p class="text-red-700 mt-1">Error: ${error.message}</p>
+                        <p class="text-red-600 mt-1 text-sm">Check console for details</p>
+                    `;
+                });
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                console.log('📜 Creating script element for:', src);
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+
+                script.onload = () => {
+                    console.log('✅ Script loaded successfully:', src);
+                    resolve();
+                };
+
+                script.onerror = (error) => {
+                    console.error('❌ Script failed to load:', src, error);
+                    reject(new Error(`Failed to load script: ${src}`));
+                };
+
+                console.log('🔌 Appending script to document head...');
+                document.head.appendChild(script);
+                console.log('✅ Script appended to DOM');
+            });
+        }
+
+        // Global function that React components can call
+        window.updateReactProblem = (problem) => {
+            console.log('📝 React components updated with problem:', problem.title);
+        };
+
+        // Manual initialization function
+        function addManualInitButton() {
+            console.log('🔧 Adding manual initialization button...');
+
+            const reactRoot = document.getElementById('react-root');
+            if (!reactRoot) {
+                console.error('❌ No react-root element found');
+                return;
+            }
+
+            // Create manual init button
+            const button = document.createElement('button');
+            button.innerHTML = '🔧 Manual Init';
+            button.className = 'bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors mt-4';
+            button.onclick = () => {
+                console.log('🔧 Manual initialization triggered...');
+
+                // Try to use existing instance
+                if (window.leetmentorStandaloneReact) {
+                    console.log('✅ Using existing standalone instance');
+                    window.leetmentorTestInstance = window.leetmentorStandaloneReact;
+
+                    // Force re-render
+                    if (window.leetmentorTestInstance.injectTestInterface) {
+                        window.leetmentorTestInstance.injectTestInterface();
+                    }
+                } else if (window.StandaloneReactInterviewer) {
+                    console.log('✅ Creating from global class');
+                    try {
+                        const interviewer = new window.StandaloneReactInterviewer();
+                        window.leetmentorTestInstance = interviewer;
+                        console.log('✅ Manual instance created successfully!');
+                    } catch (e) {
+                        console.error('❌ Failed to create instance:', e);
+                    }
+                } else {
+                    console.error('❌ No instance or class available');
+                }
+            };
+
+            // Add button to react-root
+            reactRoot.appendChild(button);
+            console.log('✅ Manual init button added');
+        }
+
+        console.log('✅ React Test Interface initialized');
+    </script>
+</body>
+</html>

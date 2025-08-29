@@ -4,6 +4,8 @@ export interface VoiceUIConfig {
   onModeChange?: (mode: VoiceMode) => void;
   onToggleListening?: () => void;
   onStopSpeaking?: () => void;
+  onSpeedChange?: (rate: number) => void;
+  currentSpeed?: number;
 }
 
 /**
@@ -52,6 +54,8 @@ export class VoiceUI {
     if (!this.container) return;
 
     const state = this.voiceChat.getState();
+
+    this.updateSpeedButtons();
     
     // Update microphone button
     const micButton = this.container.querySelector('#mic-button') as HTMLButtonElement;
@@ -119,6 +123,47 @@ export class VoiceUI {
         transcriptDisplay.style.opacity = '0';
       }
     }
+  }
+
+  /**
+   * Update speed button states
+   */
+  private updateSpeedButtons() {
+    if (!this.container) return;
+
+    const currentSpeed = this.config.currentSpeed || 1.0;
+    const speedButtons = this.container.querySelectorAll('.speed-button');
+
+    speedButtons.forEach(button => {
+      const rate = parseFloat((button as HTMLElement).dataset.rate || '1.0');
+      if (Math.abs(rate - currentSpeed) < 0.01) {
+        button.setAttribute('style', `
+          background: #3b82f6;
+          color: white;
+          border: 1px solid #3b82f6;
+          border-radius: 4px;
+          padding: 4px 6px;
+          cursor: pointer;
+          font-size: 10px;
+          font-weight: 500;
+          transition: all 0.2s;
+          min-width: 24px;
+        `);
+      } else {
+        button.setAttribute('style', `
+          background: #ffffff;
+          color: #64748b;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+          padding: 4px 6px;
+          cursor: pointer;
+          font-size: 10px;
+          font-weight: 500;
+          transition: all 0.2s;
+          min-width: 24px;
+        `);
+      }
+    });
   }
 
   /**
@@ -257,6 +302,48 @@ export class VoiceUI {
           Stop
         </button>
 
+        <!-- Speed Control -->
+        ${state.isEnabled ? `
+        <div style="
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: #f1f5f9;
+          border-radius: 6px;
+          padding: 4px;
+        ">
+          <span style="
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 500;
+            margin-right: 2px;
+          ">Speed:</span>
+          <div style="display: flex; gap: 2px;">
+            ${[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map(rate => `
+              <button
+                id="speed-${rate}"
+                class="speed-button"
+                data-rate="${rate}"
+                style="
+                  background: ${(this.config.currentSpeed || 1.0) === rate ? '#3b82f6' : '#ffffff'};
+                  color: ${(this.config.currentSpeed || 1.0) === rate ? 'white' : '#64748b'};
+                  border: 1px solid #e2e8f0;
+                  border-radius: 4px;
+                  padding: 4px 6px;
+                  cursor: pointer;
+                  font-size: 10px;
+                  font-weight: 500;
+                  transition: all 0.2s;
+                  min-width: 24px;
+                "
+              >
+                ${rate}x
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+
         <!-- Mode Toggle Button -->
         <button id="mode-button" style="
           background: #64748b;
@@ -292,6 +379,15 @@ export class VoiceUI {
         #mode-button:hover {
           background: #475569;
         }
+
+        .speed-button:hover {
+          background: #e2e8f0 !important;
+          transform: translateY(-1px);
+        }
+
+        .speed-button:active {
+          transform: translateY(0);
+        }
       </style>
     `;
   }
@@ -314,6 +410,16 @@ export class VoiceUI {
     // Stop speaking button
     stopButton?.addEventListener('click', () => {
       this.config.onStopSpeaking?.();
+    });
+
+    // Speed buttons
+    const speedButtons = this.container.querySelectorAll('.speed-button');
+    speedButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const target = e.target as HTMLButtonElement;
+        const rate = parseFloat(target.dataset.rate || '1.0');
+        this.config.onSpeedChange?.(rate);
+      });
     });
 
     // Mode toggle button

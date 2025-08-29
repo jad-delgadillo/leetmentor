@@ -555,120 +555,123 @@ class LeetCodeDetector {
 
   private injectInterviewInterface() {
     console.log('🔍 LeetMentor: Starting interface injection...');
-    
+
     // Remove existing interface if present
     const existingInterface = document.getElementById('leetmentor-interview-interface');
     if (existingInterface) {
-      console.log('🗑️ LeetMentor: Removing existing interface');
-      existingInterface.remove();
+        console.log('🗑️ LeetMentor: Removing existing interface');
+        existingInterface.remove();
     }
-
-    // Find the problem description area to inject into
-    console.log('🔍 LeetMentor: Looking for problem description container...');
-    const problemDescriptionContainer = this.findProblemDescriptionContainer();
-    
-    if (!problemDescriptionContainer) {
-      console.warn('⚠️ LeetMentor: Could not find problem description container for interface injection');
-      console.log('🔄 LeetMentor: Trying fallback injection methods...');
-      this.tryFallbackInjection();
-      return;
-    }
-
-    console.log('✅ LeetMentor: Found problem description container:', problemDescriptionContainer);
 
     // Create the interview interface container
     const interfaceContainer = document.createElement('div');
     interfaceContainer.id = 'leetmentor-interview-interface';
     interfaceContainer.style.cssText = `
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      border: 2px solid #e2e8f0;
-      border-radius: 12px;
-      margin: 16px 0;
-      padding: 16px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      position: relative;
-      overflow: hidden;
+        position: fixed;
+        top: 80px; 
+        right: 20px;
+        width: 480px;
+        height: 75vh;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transform: translateX(100%);
+        transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     `;
 
     // Create header with toggle button
     const header = document.createElement('div');
     header.style.cssText = `
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #cbd5e1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        background: white;
+        flex-shrink: 0;
     `;
 
     const title = document.createElement('h3');
     title.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="display: inline; margin-right: 8px;">
-        <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      AI Interview Assistant
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="display: inline; margin-right: 10px; color: #3b82f6;">
+            <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        AI Interview Assistant
     `;
     title.style.cssText = `
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      color: #334155;
-      display: flex;
-      align-items: center;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
     `;
 
-    const toggleButton = document.createElement('button');
-    toggleButton.innerHTML = '−';
-    toggleButton.style.cssText = `
-      background: #64748b;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      width: 28px;
-      height: 28px;
-      cursor: pointer;
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background-color 0.2s;
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '×';
+    closeButton.style.cssText = `
+        background: #e2e8f0;
+        color: #475569;
+        border: none;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
     `;
+    closeButton.onmouseover = () => {
+        closeButton.style.backgroundColor = '#ef4444';
+        closeButton.style.color = 'white';
+        closeButton.style.transform = 'rotate(90deg)';
+    };
+    closeButton.onmouseout = () => {
+        closeButton.style.backgroundColor = '#e2e8f0';
+        closeButton.style.color = '#475569';
+        closeButton.style.transform = 'rotate(0deg)';
+    };
 
     header.appendChild(title);
-    header.appendChild(toggleButton);
+    header.appendChild(closeButton);
 
     // Create chat interface
     const chatInterface = this.createChatInterface();
-    
-    // Create submission monitor
-    const submissionMonitor = this.createSubmissionMonitor();
+    chatInterface.style.flex = '1';
+    chatInterface.style.display = 'flex';
+    chatInterface.style.flexDirection = 'column';
 
     interfaceContainer.appendChild(header);
     interfaceContainer.appendChild(chatInterface);
-    interfaceContainer.appendChild(submissionMonitor);
 
-    // Insert interface into problem description area
-    problemDescriptionContainer.insertBefore(interfaceContainer, problemDescriptionContainer.firstChild);
+    // Append to body and animate in
+    document.body.appendChild(interfaceContainer);
+    setTimeout(() => {
+        interfaceContainer.style.transform = 'translateX(0)';
+    }, 50);
 
-    // Set up toggle functionality
-    let isExpanded = true;
-    toggleButton.addEventListener('click', () => {
-      isExpanded = !isExpanded;
-      chatInterface.style.display = isExpanded ? 'block' : 'none';
-      submissionMonitor.style.display = isExpanded ? 'block' : 'none';
-      toggleButton.innerHTML = isExpanded ? '−' : '+';
-      toggleButton.style.backgroundColor = isExpanded ? '#64748b' : '#94a3b8';
+    // Set up close functionality
+    closeButton.addEventListener('click', () => {
+        interfaceContainer.style.transform = 'translateX(100%)';
+        setTimeout(() => interfaceContainer.remove(), 400);
     });
 
-    // Add CSS for animations
+    // Add CSS for animations and scrollbars
     this.injectVoiceCSS();
 
     // Initialize the interview
     this.initializeEmbeddedInterview();
 
-    console.log('LeetMentor: Successfully injected interview interface into problem description');
-  }
+    console.log('LeetMentor: Successfully injected interview interface as a fixed panel');
+}
 
   private findProblemDescriptionContainer(): Element | null {
     console.log('🔍 LeetMentor: Searching for problem description container...');
@@ -1494,6 +1497,69 @@ class LeetCodeDetector {
     `;
     stopButton.title = 'Stop AI speaking';
 
+    // Speed control container
+    const speedContainer = document.createElement('div');
+    speedContainer.id = 'leetmentor-speed-container';
+    speedContainer.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      padding: 4px;
+    `;
+
+    // Speed label
+    const speedLabel = document.createElement('span');
+    speedLabel.textContent = 'Speed:';
+    speedLabel.style.cssText = `
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 500;
+      margin-right: 2px;
+    `;
+
+    // Speed buttons container
+    const speedButtonsContainer = document.createElement('div');
+    speedButtonsContainer.style.cssText = `
+      display: flex;
+      gap: 2px;
+    `;
+
+    // Create speed buttons
+    const speeds = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+    const speedButtons: HTMLButtonElement[] = [];
+
+    speeds.forEach(speed => {
+      const speedButton = document.createElement('button');
+      speedButton.id = `leetmentor-speed-${speed}`;
+      speedButton.textContent = `${speed}x`;
+      speedButton.dataset.speed = speed.toString();
+      speedButton.style.cssText = `
+        background: ${speed === 1.0 ? '#3b82f6' : '#ffffff'};
+        color: ${speed === 1.0 ? 'white' : '#64748b'};
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 4px 6px;
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 500;
+        transition: all 0.2s;
+        min-width: 24px;
+      `;
+      speedButton.title = `Speech speed ${speed}x ${speed === 1.0 ? '(Normal)' : speed < 1.0 ? '(Slower)' : '(Faster)'}`;
+
+      speedButton.addEventListener('click', () => {
+        this.setVoiceSpeed(speed);
+      });
+
+      speedButtons.push(speedButton);
+      speedButtonsContainer.appendChild(speedButton);
+    });
+
+    speedContainer.appendChild(speedLabel);
+    speedContainer.appendChild(speedButtonsContainer);
+
     // Voice mode toggle
     const modeToggle = document.createElement('button');
     modeToggle.id = 'leetmentor-mode-toggle';
@@ -1547,12 +1613,44 @@ class LeetCodeDetector {
 
     buttonArea.appendChild(micButton);
     buttonArea.appendChild(stopButton);
+    buttonArea.appendChild(speedContainer);
     buttonArea.appendChild(modeToggle);
 
     voiceContainer.appendChild(statusArea);
     voiceContainer.appendChild(buttonArea);
 
     return voiceContainer;
+  }
+
+  private setVoiceSpeed(rate: number) {
+    // Clamp rate between reasonable bounds
+    const clampedRate = Math.min(Math.max(rate, 0.25), 4.0);
+
+    console.log(`🎤 LeetMentor: Setting voice speed to ${clampedRate}x`);
+
+    // Update voice service if using traditional mode
+    if (this.voiceService) {
+      this.voiceService.setSpeechRate(clampedRate);
+    }
+
+    // Update speed button states
+    this.updateSpeedButtons(clampedRate);
+  }
+
+  private updateSpeedButtons(currentSpeed: number = 1.0) {
+    const speeds = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+    speeds.forEach(speed => {
+      const button = document.getElementById(`leetmentor-speed-${speed}`) as HTMLButtonElement;
+      if (button) {
+        if (Math.abs(speed - currentSpeed) < 0.01) {
+          button.style.background = '#3b82f6';
+          button.style.color = 'white';
+        } else {
+          button.style.background = '#ffffff';
+          button.style.color = '#64748b';
+        }
+      }
+    });
   }
 
   private updateVoiceUI() {

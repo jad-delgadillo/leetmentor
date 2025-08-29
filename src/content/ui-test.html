@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeetMentor UI Test Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configure Tailwind for production warning
+        console.log('🎨 Loading Tailwind CSS...');
+    </script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'leetcode': {
+                            50: '#fef7ee',
+                            100: '#fdedd6',
+                            200: '#fad7ac',
+                            300: '#f6b777',
+                            400: '#f08d40',
+                            500: '#ec6d1a',
+                            600: '#dd5210',
+                            700: '#b73d10',
+                            800: '#923215',
+                            900: '#762b14',
+                        },
+                        'accent': {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-gentle': 'bounce 2s infinite',
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="ui-test-container" class="max-w-6xl mx-auto p-4">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">🎯 LeetMentor UI Test Interface</h1>
+            <p class="text-gray-600 mb-4">Test and develop the standalone interview interface components</p>
+
+            <div class="flex gap-4 mb-6">
+                <button id="inject-interface-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                    🚀 Inject Interface
+                </button>
+                <button id="clear-interface-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors">
+                    🗑️ Clear Interface
+                </button>
+                <button id="test-animations-btn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+                    ✨ Test Animations
+                </button>
+            </div>
+
+            <!-- Mock LeetCode Problem Container -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 mb-2">📝 Mock LeetCode Problem</h2>
+                <div id="mock-problem" class="bg-white rounded border p-4">
+                    <h3 id="problem-title" class="text-xl font-bold text-gray-900 mb-2">Two Sum</h3>
+                    <div class="flex items-center gap-2 mb-4">
+                        <span id="problem-difficulty" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                            Easy
+                        </span>
+                    </div>
+                    <div class="text-gray-700">
+                        <p>Given an array of integers <code class="bg-gray-100 px-1 rounded">nums</code> and an integer <code class="bg-gray-100 px-1 rounded">target</code>, return indices of the two numbers such that they add up to <code class="bg-gray-100 px-1 rounded">target</code>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Preview Area -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">👁️ Live Preview</h2>
+            <div id="preview-area" class="border-2 border-dashed border-gray-300 rounded-lg min-h-96 p-4">
+                <p class="text-gray-500 text-center">The LeetMentor interface will appear here when injected</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🚀 UI Test Interface Loading...');
+
+        // Mock problem data for testing
+        const mockProblem = {
+            id: 'two-sum',
+            title: 'Two Sum',
+            titleSlug: 'two-sum',
+            difficulty: 'Easy',
+            description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+            url: 'https://leetcode.com/problems/two-sum/'
+        };
+
+        console.log('✅ Mock problem data defined:', mockProblem);
+
+        // Test interface controls
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('📄 DOM Content Loaded');
+
+            const injectBtn = document.getElementById('inject-interface-btn');
+            if (injectBtn) {
+                console.log('✅ Inject button found');
+                injectBtn.addEventListener('click', () => {
+                    console.log('🎯 Inject button clicked');
+                    injectLeetMentorInterface(mockProblem);
+                });
+            } else {
+                console.error('❌ Inject button not found!');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Clear interface button
+            const clearBtn = document.getElementById('clear-interface-btn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    console.log('🗑️ Clear button clicked');
+                    const existing = document.getElementById('leetmentor-standalone');
+                    if (existing) {
+                        existing.remove();
+                        const previewArea = document.getElementById('preview-area');
+                        if (previewArea) {
+                            previewArea.innerHTML = '<p class="text-gray-500 text-center">The LeetMentor interface will appear here when injected</p>';
+                        }
+                        console.log('✅ Interface cleared');
+                    } else {
+                        console.log('⚠️ No interface to clear');
+                    }
+                });
+            }
+
+            // Test animations button
+            const testAnimBtn = document.getElementById('test-animations-btn');
+            if (testAnimBtn) {
+                testAnimBtn.addEventListener('click', () => {
+                    console.log('✨ Test animations clicked');
+                    const interface = document.getElementById('leetmentor-standalone');
+                    if (interface) {
+                        interface.style.animation = 'bounce-gentle 2s';
+                        setTimeout(() => {
+                            interface.style.animation = '';
+                        }, 2000);
+                        console.log('✅ Animation test started');
+                    } else {
+                        console.log('⚠️ No interface to animate');
+                    }
+                });
+            }
+        });
+
+        function injectLeetMentorInterface(problem) {
+            console.log('💉 Injecting LeetMentor interface...', problem);
+
+            // Remove existing
+            const existing = document.getElementById('leetmentor-standalone');
+            if (existing) {
+                existing.remove();
+                console.log('🗑️ Removed existing interface');
+            }
+
+            const previewArea = document.getElementById('preview-area');
+            if (!previewArea) {
+                console.error('❌ Preview area not found!');
+                return;
+            }
+
+            console.log('✅ Preview area found, clearing...');
+            previewArea.innerHTML = ''; // Clear preview area
+
+            // Use React components for testing (this will reflect your actual components)
+            console.log('🔄 Using React components for live preview...');
+
+            // Create container for React
+            const interviewInterface = document.createElement('div');
+            interviewInterface.id = 'leetmentor-standalone';
+            interviewInterface.className = 'leetmentor-gradient rounded-3xl p-0 m-6 shadow-2xl border border-white/10 relative z-50 overflow-hidden';
+
+            // For now, create a simplified version that matches React components
+            // TODO: In the future, we can integrate actual React rendering here
+            const problemTitle = problem?.title || 'Unknown Problem';
+            const difficulty = problem?.difficulty || 'Medium';
+            const difficultyColor = getDifficultyColor(difficulty);
+
+            interviewInterface.innerHTML = `
+                <!-- Header Section (matches InterviewHeader.tsx) -->
+                <div class="bg-white/10 backdrop-blur-xl border-b border-white/10 p-6 relative">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 bg-gradient-to-br from-white/20 to-white/10 rounded-2xl flex items-center justify-center backdrop-blur-xl border border-white/20 shadow-lg">
+                                🎯
+                            </div>
+                            <div class="leading-tight">
+                                <div class="text-2xl font-black text-white" style="letter-spacing: -0.5px;">LeetMentor</div>
+                                <div class="text-sm opacity-90 font-medium text-white/90 uppercase tracking-wider">AI Interview Assistant</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-sm font-semibold text-white">
+                            <div class="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
+                            <span class="uppercase tracking-wide">Ready</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Problem Info Section (matches ProblemInfo.tsx) -->
+                <div class="bg-white/5 p-6 backdrop-blur-lg border-b border-white/5">
+                    <div class="text-xl font-bold mb-3 leading-snug text-white">${problemTitle}</div>
+                    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold text-white uppercase tracking-widest ${difficultyColor} shadow-lg border border-white/20">
+                        <div class="w-2 h-2 bg-white rounded-full opacity-80"></div>
+                        ${difficulty}
+                    </div>
+                </div>
+
+                <!-- Action Buttons Section (matches ActionButtons.tsx) -->
+                <div class="p-6 flex gap-4 items-center">
+                    <button id="start-interview-btn" class="flex items-center gap-3 px-6 py-4 border-none rounded-2xl text-base font-bold cursor-pointer transition-all duration-300 ease-out flex-1 justify-center font-inherit bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/30 border border-white/20 hover:shadow-xl hover:shadow-green-500/40 hover:scale-105 active:scale-95">
+                        <span class="text-xl">🎤</span>
+                        Start Interview
+                    </button>
+
+                    <button id="settings-btn" class="flex items-center justify-center gap-2 p-4 border-none rounded-2xl text-base font-bold cursor-pointer transition-all duration-300 ease-out flex-shrink-0 font-inherit bg-white/10 text-white border border-white/20 backdrop-blur-lg hover:bg-white/15 active:scale-95">
+                        <span class="text-xl">⚙️</span>
+                    </button>
+                </div>
+
+                    <!-- Chat Interface (Hidden by default) -->
+                    <div id="chat-container" class="bg-white/2 border-t border-white/10 backdrop-blur-lg flex flex-col overflow-hidden max-h-96 hidden">
+                        <!-- Chat Header -->
+                        <div class="flex justify-between items-center p-6 bg-white/5 border-b border-white/10">
+                            <div class="flex items-center gap-3">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <div class="text-base font-bold text-white tracking-wide">Interview Session</div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button id="clear-chat-btn" class="bg-white/10 border border-white/20 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-all duration-200 tracking-wide hover:bg-white/15">Clear</button>
+                                <button id="export-chat-btn" class="bg-white/10 border border-white/20 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-all duration-200 tracking-wide hover:bg-white/15">Export</button>
+                            </div>
+                        </div>
+
+                        <!-- Chat Messages -->
+                        <div id="chat-messages" class="flex-1 overflow-y-auto p-6 flex flex-col gap-5 scroll-smooth min-h-40 max-h-80"></div>
+
+                        <!-- Chat Input Section -->
+                        <div class="p-6 bg-white/2 border-t border-white/10 flex-shrink-0 relative z-10">
+                            <div class="flex gap-4 items-end">
+                                <textarea id="user-input" class="flex-1 bg-white/8 border-2 border-white/15 rounded-2xl px-5 py-4 text-base font-medium resize-none min-h-14 max-h-32 transition-all duration-300 ease-out line-height-relaxed text-white placeholder-white/60 focus:border-blue-400/60 focus:bg-white/12 focus:shadow-lg focus:shadow-blue-400/10" placeholder="Type your response or use voice..." rows="1"></textarea>
+
+                                <button id="voice-record-btn" class="bg-gradient-to-r from-purple-500 to-violet-600 border-none rounded-2xl w-14 h-14 flex items-center justify-center cursor-pointer transition-all duration-300 ease-out shadow-lg shadow-purple-500/30 border border-white/20 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-110 active:scale-90">
+                                    <span class="text-xl text-white">🎤</span>
+                                </button>
+
+                                <button id="send-btn" class="bg-gradient-to-r from-green-500 to-emerald-600 border-none rounded-2xl w-14 h-14 flex items-center justify-center cursor-pointer transition-all duration-300 ease-out shadow-lg shadow-green-500/30 border border-white/20 hover:shadow-xl hover:shadow-green-500/40 hover:scale-110 active:scale-90">
+                                    <span class="text-xl font-black text-white">➤</span>
+                                </button>
+                            </div>
+
+                            <!-- Voice Controls -->
+                            <div class="mt-4 flex justify-between items-center text-sm opacity-80 text-white">
+                                <div class="flex items-center gap-2 font-medium">
+                                    <span>💡</span>
+                                    <span>Press Enter to send • Hold Spacebar for voice • Esc to unfocus</span>
+                                </div>
+
+                                <div class="flex gap-2 items-center">
+                                    <button id="skip-voice-btn" class="bg-red-500/20 border border-red-400/40 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-200 hover:bg-red-500/30 hidden tracking-wide">⏭️ Skip Voice</button>
+
+                                    <div class="flex gap-1.5 items-center">
+                                        <button id="voice-speed-slow" class="bg-white/10 border border-white/20 text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-all duration-200 tracking-wide hover:bg-white/15">0.5x</button>
+                                        <button id="voice-speed-normal" class="bg-blue-500/30 border border-blue-400/50 text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-all duration-200 tracking-wide">1.0x</button>
+                                        <button id="voice-speed-fast" class="bg-white/10 border border-white/20 text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-all duration-200 tracking-wide hover:bg-white/15">1.5x</button>
+                                        <button id="voice-toggle-btn" class="bg-white/10 border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-200 tracking-wide hover:bg-white/15">🔊 Voice ON</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Insert into preview area
+            previewArea.appendChild(interviewInterface);
+
+            // Add entrance animation
+            interviewInterface.style.opacity = '0';
+            interviewInterface.style.transform = 'translateY(20px) scale(0.95)';
+
+            setTimeout(() => {
+                interviewInterface.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+                interviewInterface.style.opacity = '1';
+                interviewInterface.style.transform = 'translateY(0) scale(1)';
+            }, 100);
+
+            // Setup basic event listeners for testing
+            setupTestEventListeners();
+            console.log('✅ LeetMentor interface injected successfully!');
+        }
+
+        function getDifficultyColor(difficulty) {
+            switch (difficulty.toLowerCase()) {
+                case 'easy': return 'bg-green-500';
+                case 'medium': return 'bg-yellow-500';
+                case 'hard': return 'bg-red-500';
+                default: return 'bg-gray-500';
+            }
+        }
+
+        function setupTestEventListeners() {
+            const startBtn = document.getElementById('start-interview-btn');
+            const settingsBtn = document.getElementById('settings-btn');
+            const voiceBtn = document.getElementById('voice-record-btn');
+            const sendBtn = document.getElementById('send-btn');
+            const userInput = document.getElementById('user-input');
+            const clearChatBtn = document.getElementById('clear-chat-btn');
+            const exportChatBtn = document.getElementById('export-chat-btn');
+            const skipVoiceBtn = document.getElementById('skip-voice-btn');
+            const voiceToggleBtn = document.getElementById('voice-toggle-btn');
+            const speedButtons = ['voice-speed-slow', 'voice-speed-normal', 'voice-speed-fast'].map(id => document.getElementById(id));
+
+            if (startBtn) {
+                startBtn.addEventListener('click', () => {
+                    const chatContainer = document.getElementById('chat-container');
+                    const startBtn = document.getElementById('start-interview-btn');
+
+                    if (chatContainer && startBtn) {
+                        chatContainer.classList.remove('hidden');
+                        startBtn.innerHTML = '<span class="text-xl">🎯</span>Interview Active';
+                        startBtn.className = startBtn.className.replace('from-green-500 to-emerald-600', 'from-yellow-500 to-orange-600');
+
+                        // Add welcome message
+                        addTestMessage('assistant', "Hi! I'm your technical interviewer today. We'll be doing a 45-minute coding interview focusing on problem-solving and algorithm design.\n\nCan you explain this problem in your own words? What are the key inputs and expected outputs?\n\n*Remember: You'll implement your solution in the LeetCode code editor, and we'll discuss your approach, complexity analysis, and optimizations together.*");
+
+                        // Setup chat input
+                        setupChatInput();
+                    }
+                });
+            }
+
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', () => {
+                    alert('Settings panel coming soon!');
+                });
+            }
+
+            if (clearChatBtn) {
+                clearChatBtn.addEventListener('click', () => {
+                    const chatMessages = document.getElementById('chat-messages');
+                    if (chatMessages) {
+                        chatMessages.innerHTML = '';
+                    }
+                });
+            }
+
+            if (exportChatBtn) {
+                exportChatBtn.addEventListener('click', () => {
+                    alert('Chat export feature coming soon!');
+                });
+            }
+
+            if (voiceToggleBtn) {
+                let voiceEnabled = true;
+                voiceToggleBtn.addEventListener('click', () => {
+                    voiceEnabled = !voiceEnabled;
+                    if (voiceEnabled) {
+                        voiceToggleBtn.innerHTML = '🔊 Voice ON';
+                        voiceToggleBtn.className = voiceToggleBtn.className.replace('bg-red-500/20', 'bg-white/10').replace('border-red-400/40', 'border-white/20');
+                    } else {
+                        voiceToggleBtn.innerHTML = '🔇 Voice OFF';
+                        voiceToggleBtn.className = voiceToggleBtn.className.replace('bg-white/10', 'bg-red-500/20').replace('border-white/20', 'border-red-400/40');
+                    }
+                });
+            }
+
+            // Speed button handlers
+            speedButtons.forEach((btn, index) => {
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        // Reset all buttons
+                        speedButtons.forEach(b => {
+                            if (b) b.className = b.className.replace('bg-blue-500/30 border-blue-400/50', 'bg-white/10 border-white/20');
+                        });
+                        // Highlight selected
+                        btn.className = btn.className.replace('bg-white/10 border-white/20', 'bg-blue-500/30 border-blue-400/50');
+                    });
+                }
+            });
+
+            if (skipVoiceBtn) {
+                skipVoiceBtn.addEventListener('click', () => {
+                    skipVoiceBtn.classList.add('hidden');
+                    alert('Voice skipped!');
+                });
+            }
+        }
+
+        function setupChatInput() {
+            const sendBtn = document.getElementById('send-btn');
+            const userInput = document.getElementById('user-input');
+
+            if (sendBtn && userInput) {
+                // Auto-resize textarea
+                userInput.addEventListener('input', () => {
+                    userInput.style.height = 'auto';
+                    userInput.style.height = Math.min(userInput.scrollHeight, 128) + 'px';
+                });
+
+                sendBtn.addEventListener('click', () => {
+                    sendTestMessage();
+                });
+
+                userInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendTestMessage();
+                    }
+                });
+            }
+        }
+
+        function sendTestMessage() {
+            const userInput = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+
+            if (userInput && sendBtn) {
+                const message = userInput.value.trim();
+                if (message) {
+                    // Add user message
+                    addTestMessage('user', message);
+                    userInput.value = '';
+                    userInput.style.height = 'auto';
+
+                    // Simulate AI response after delay
+                    setTimeout(() => {
+                        const responses = [
+                            "That's a great observation! Can you walk me through your thought process?",
+                            "Excellent! Now let's think about the time and space complexity of this approach.",
+                            "Perfect! Can you think of any edge cases we should consider?",
+                            "Great explanation! Let's implement this solution now."
+                        ];
+                        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+                        addTestMessage('assistant', randomResponse);
+                    }, 1000 + Math.random() * 2000);
+                }
+            }
+        }
+
+        function addTestMessage(role, message) {
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'flex gap-4 animate-pulse';
+
+                const avatar = role === 'user' ? '👤' : '🤖';
+                const avatarBg = role === 'user' ? 'from-green-500 to-emerald-600' : 'from-blue-500 to-indigo-600';
+                const messageBg = role === 'user' ? 'bg-green-500/15' : 'bg-blue-500/15';
+                const messageBorder = role === 'user' ? 'border-green-400/25' : 'border-blue-400/25';
+                const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                messageDiv.innerHTML = `
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center font-medium flex-shrink-0 bg-gradient-to-br ${avatarBg} shadow-lg border border-white/20">${avatar}</div>
+                    <div class="flex-1 ${messageBg} border ${messageBorder} p-4 rounded-2xl line-height-relaxed font-medium text-white backdrop-blur-lg">
+                        <div class="text-xs opacity-70 font-semibold uppercase tracking-wide mb-2">${role === 'user' ? 'You' : 'AI Interviewer'} • ${timestamp}</div>
+                        <div class="whitespace-pre-wrap break-words">${message}</div>
+                    </div>
+                `;
+
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                // Ensure the input area is visible
+                setTimeout(() => {
+                    const chatContainer = document.getElementById('chat-container');
+                    if (chatContainer) {
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }, 100);
+            }
+        }
+
+        // Auto-inject for development
+        setTimeout(() => {
+            console.log('⏰ Auto-injection timeout reached, attempting to inject...');
+            injectLeetMentorInterface(mockProblem);
+        }, 1000);
+    </script>
+
+    <style>
+        .letter-spacing-tight { letter-spacing: -0.5px; }
+        .tracking-wider { letter-spacing: 0.05em; }
+        .tracking-wide { letter-spacing: 0.025em; }
+        .line-height-relaxed { line-height: 1.625; }
+        .line-height-tight { line-height: 1.25; }
+    </style>
+</body>
+</html>

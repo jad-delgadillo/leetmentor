@@ -5,11 +5,17 @@
   "main": "dist/background.js",
   "scripts": {
     "dev": "webpack --mode development --watch",
-    "build": "webpack --mode production",
+    "build": "webpack --mode production && npm run build:standalone",
+    "build:standalone": "webpack --config webpack.standalone.config.js --mode production",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "test-ui": "cd src/content && python3 -m http.server 8000",
+    "test-react": "cd src/content && python3 -m http.server 3000",
+    "dev:ui": "webpack --mode development --watch --config webpack.standalone.config.js",
+    "dev:react": "concurrently \"npm run dev:ui\" \"npm run test-react\"",
+    "dev:full": "concurrently \"npm run dev:ui\" \"npm run test-react\" \"echo 🎉 Development server running at http://localhost:3000/react-test.html\""
   },
   "keywords": [
     "leetcode",
@@ -29,6 +35,7 @@
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "autoprefixer": "^10.4.16",
+    "concurrently": "^9.2.1",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.8.1",
     "eslint": "^8.54.0",

@@ -3,9 +3,11 @@ console.log('🚀 STANDALONE: URL:', window.location.href);
 
 /**
  * Standalone AI Interviewer Content Script
- * 
+ *
  * This version is completely self-contained to avoid CSP issues
  * No external imports, no webpack chunks, pure vanilla JavaScript
+ *
+ * TODO: Refactor to use React components and Tailwind CSS for better DX
  */
 class StandaloneAIInterviewer {
   private isInjected = false;

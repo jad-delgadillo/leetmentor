@@ -127,23 +127,28 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
                         </button>
                     )}
 
-                    {/* Speech Rate Control - Only for traditional voice */}
-                    {onSpeechRateChange && !useRealtimeAPI && (
-                        <div className="flex items-center space-x-1 bg-gray-100 rounded-md p-1">
-                            <Gauge className="w-3 h-3 text-gray-600" />
-                            {[1.0, 1.25, 1.5, 2.0].map(rate => (
-                                <button
-                                    key={rate}
-                                    onClick={() => onSpeechRateChange(rate)}
-                                    className={`px-2 py-1 text-xs rounded transition-colors ${Math.abs(currentSpeechRate - rate) < 0.01
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-transparent text-gray-600 hover:bg-gray-200'
-                                        }`}
-                                    title={`Speech speed ${rate}x`}
-                                >
-                                    {rate}x
-                                </button>
-                            ))}
+                    {/* Speech Rate Control - Show when speech rate change is available */}
+                    {onSpeechRateChange && (
+                        <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-2">
+                            <div className="flex items-center space-x-1">
+                                <Gauge className="w-3 h-3 text-gray-600" />
+                                <span className="text-xs font-medium text-gray-700">Speed:</span>
+                            </div>
+                            <div className="flex space-x-1">
+                                {[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map(rate => (
+                                    <button
+                                        key={rate}
+                                        onClick={() => onSpeechRateChange(rate)}
+                                        className={`px-2 py-1 text-xs rounded-md transition-all duration-200 transform hover:scale-105 ${Math.abs(currentSpeechRate - rate) < 0.01
+                                            ? 'bg-blue-600 text-white shadow-sm'
+                                            : 'bg-white text-gray-600 hover:bg-blue-50 border border-gray-200'
+                                            }`}
+                                        title={`Speech speed ${rate}x ${rate === 1.0 ? '(Normal)' : rate < 1.0 ? '(Slower)' : '(Faster)'}`}
+                                    >
+                                        {rate}x
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
 

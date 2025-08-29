@@ -10,7 +10,7 @@ module.exports = (env, argv) => {
     entry: {
       background: './src/background/background.ts',
       content: './src/content/content.ts',
-      'content-standalone': './src/content/content-standalone.ts',
+      'content-standalone': './src/content/standalone-react.tsx',
       popup: './src/popup/popup.tsx',
       interview: './src/interview/interview.tsx'
     },

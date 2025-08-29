@@ -193,12 +193,16 @@ const InterviewApp: React.FC = () => {
                 }
             });
 
-            // Start with welcome message
+            // Start with welcome message (dynamic based on problem)
+            const welcomeContent = INTERVIEW_PROMPTS.WELCOME_MESSAGE
+                .replace('{difficulty}', problem.difficulty.toLowerCase())
+                .replace('{title}', problem.title);
+
             const welcomeMessage: InterviewMessage = {
                 id: generateId('msg'),
                 timestamp: new Date(),
                 role: 'interviewer',
-                content: INTERVIEW_PROMPTS.WELCOME_MESSAGE,
+                content: welcomeContent,
                 type: 'text'
             };
 

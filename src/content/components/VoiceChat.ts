@@ -354,6 +354,42 @@ export class VoiceChat {
   }
 
   /**
+   * Set voice speed/rate
+   */
+  setVoiceSpeed(rate: number) {
+    if (!this.config) {
+      console.warn('🎤 VoiceChat: Cannot set speed - not configured');
+      return;
+    }
+
+    // Clamp rate between reasonable bounds
+    const clampedRate = Math.min(Math.max(rate, 0.25), 4.0);
+
+    console.log(`🎤 VoiceChat: Setting voice speed to ${clampedRate}x`);
+
+    // Update config
+    this.config.voice.rate = clampedRate;
+
+    // Update voice service if using traditional mode
+    if (this.voiceService) {
+      this.voiceService.setSpeechRate(clampedRate);
+    }
+
+    // For realtime mode, the speed would need to be handled differently
+    // but OpenAI Realtime API doesn't support speed control yet
+    if (this.currentMode === 'realtime') {
+      console.log('🎤 VoiceChat: Realtime mode - speed changes apply to future responses');
+    }
+  }
+
+  /**
+   * Get current voice speed
+   */
+  getVoiceSpeed(): number {
+    return this.config?.voice.rate || 1.0;
+  }
+
+  /**
    * Get available voice modes
    */
   getAvailableModes(): VoiceMode[] {
