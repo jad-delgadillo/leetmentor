@@ -85,7 +85,9 @@ export class VoiceUI {
     }
 
     if (modeButton) {
-      modeButton.innerHTML = state.currentMode === 'realtime' ? '⚡ Realtime' : '🎤 Traditional';
+      const label = state.currentMode === 'realtime' ? 'Realtime' : 'Traditional';
+      const icon = state.currentMode === 'realtime' ? this.getBoltIcon() : this.getMicrophoneIcon();
+      modeButton.innerHTML = icon + ' ' + label;
       modeButton.style.background = state.currentMode === 'realtime' ? '#8b5cf6' : '#64748b';
       modeButton.style.color = 'white';
     }
@@ -344,20 +346,7 @@ export class VoiceUI {
         </div>
         ` : ''}
 
-        <!-- Mode Toggle Button -->
-        <button id="mode-button" style="
-          background: #64748b;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          padding: 6px 10px;
-          cursor: pointer;
-          font-size: 11px;
-          font-weight: 500;
-          transition: all 0.2s;
-        ">
-          🎤 Traditional
-        </button>
+        <!-- Realtime mode disabled: toggle hidden -->
       </div>
 
       <!-- CSS Animations -->
@@ -473,6 +462,17 @@ export class VoiceUI {
         <path d="M11 5L6 9H2v6h4l5 4V5z" stroke="currentColor" stroke-width="2"/>
         <line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" stroke-width="2"/>
         <line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    `;
+  }
+
+  /**
+   * Get bolt icon SVG (for realtime mode)
+   */
+  private getBoltIcon(): string {
+    return `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0;">
+        <path d="M13 2L3 14h7l-1 8 11-12h-7l0-8z" stroke="currentColor" stroke-width="2" fill="none"/>
       </svg>
     `;
   }

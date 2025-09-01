@@ -9,10 +9,21 @@ export const API_ENDPOINTS = {
 } as const;
 
 export const CHATGPT_MODELS = [
-  'gpt-4',
+  'gpt-4o',
+  'gpt-4o-mini',
   'gpt-4-turbo-preview',
+  'gpt-4',
   'gpt-3.5-turbo'
 ] as const;
+
+// Approximate per-1k token pricing (USD). Keep up to date as needed.
+export const MODEL_PRICING_USD_PER_1K = {
+  'gpt-4o': { input: 0.005, output: 0.015 },
+  'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+  'gpt-4-turbo-preview': { input: 0.01, output: 0.03 },
+  'gpt-4': { input: 0.03, output: 0.06 },
+  'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 }
+} as const;
 
 export const INTERVIEW_DIFFICULTY_LEVELS = {
   beginner: {

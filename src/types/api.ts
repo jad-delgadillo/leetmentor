@@ -52,4 +52,5 @@ export interface ExtensionConfig {
   speechRecognition: SpeechRecognitionSettings;
   interviewMode: 'beginner' | 'intermediate' | 'advanced';
   practiceAreas: string[];
+  realtimeProxyUrl?: string;
 }

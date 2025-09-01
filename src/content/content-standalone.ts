@@ -441,7 +441,7 @@ class StandaloneAIInterviewer {
                 backdrop-filter: blur(20px);
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-              ">🎯</div>
+              ">${this.getTargetIcon(24)}</div>
               <div style="line-height: 1.3;">
                 <div style="
                   font-size: 24px;
@@ -551,8 +551,8 @@ class StandaloneAIInterviewer {
             border: 1px solid rgba(255, 255, 255, 0.2);
             letter-spacing: 0.3px;
           " onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 12px 32px rgba(34, 197, 94, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(34, 197, 94, 0.3)'">
-            <span style="font-size: 18px;">🎤</span>
-            Start Interview
+            ${this.getMicIcon(18)}
+            <span style="margin-left:8px">Start Interview</span>
           </button>
           
           <button id="settings-btn" style="
@@ -575,8 +575,8 @@ class StandaloneAIInterviewer {
             color: white;
             border: 1px solid rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(10px);
-          " onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.background='rgba(255, 255, 255, 0.1)'">
-            <span style="font-size: 18px;">⚙️</span>
+          " onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.background='rgba(255, 255, 255, 0.1)'" aria-label="Settings" title="Settings">
+            ${this.getSettingsIcon(18)}
           </button>
         </div>
         
@@ -706,11 +706,8 @@ class StandaloneAIInterviewer {
                 flex-shrink: 0;
                 box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
                 border: 1px solid rgba(255, 255, 255, 0.2);
-              " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(139, 92, 246, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(139, 92, 246, 0.3)'">
-                <span style="
-                  color: white;
-                  font-size: 18px;
-                ">🎤</span>
+              " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(139, 92, 246, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(139, 92, 246, 0.3)'" aria-label="Record voice" title="Record voice">
+                ${this.getMicIcon(18)}
               </button>
               
               <button id="send-btn" style="
@@ -727,12 +724,8 @@ class StandaloneAIInterviewer {
                 flex-shrink: 0;
                 box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
                 border: 1px solid rgba(255, 255, 255, 0.2);
-              " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(34, 197, 94, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(34, 197, 94, 0.3)'">
-                <span style="
-                  color: white;
-                  font-size: 18px;
-                  font-weight: bold;
-                ">➤</span>
+              " onmouseover="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 12px 32px rgba(34, 197, 94, 0.4)'" onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 8px 24px rgba(34, 197, 94, 0.3)'" aria-label="Send message" title="Send message">
+                ${this.getSendIcon(18)}
               </button>
             </div>
             
@@ -752,7 +745,7 @@ class StandaloneAIInterviewer {
                 gap: 8px;
                 font-weight: 500;
               ">
-                <span>💡</span>
+                <span>${this.getLightbulbIcon(14)}</span>
                 <span>Press Enter to send • Hold Spacebar for voice • Esc to unfocus</span>
               </div>
               
@@ -769,7 +762,7 @@ class StandaloneAIInterviewer {
                   transition: all 0.2s ease;
                   display: none;
                   letter-spacing: 0.3px;
-                " onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'">⏭️ Skip Voice</button>
+                " onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.2)'">${this.getSkipIcon(14)} <span style="margin-left:4px">Skip Voice</span></button>
                 
                 <div style="display: flex; gap: 6px; align-items: center;">
                   <button id="voice-speed-slow" style="
@@ -819,7 +812,7 @@ class StandaloneAIInterviewer {
                     cursor: pointer;
                     transition: all 0.2s ease;
                     letter-spacing: 0.3px;
-                  " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">🔊 Voice ON</button>
+                  " onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">${this.getVolumeOnIcon(14)} <span style="margin-left:4px">Voice ON</span></button>
                 </div>
               </div>
             </div>
@@ -942,7 +935,7 @@ class StandaloneAIInterviewer {
     
     if (chatContainer && startBtn) {
       chatContainer.style.display = 'flex';
-      startBtn.innerHTML = '<span style="font-size: 18px;">🎯</span>Interview Active';
+      startBtn.innerHTML = `${this.getTargetIcon(18)}<span style="margin-left:8px">Interview Active</span>`;
       startBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
       startBtn.style.boxShadow = '0 8px 24px rgba(245, 158, 11, 0.4)';
       this.isInterviewActive = true;
@@ -1117,7 +1110,7 @@ class StandaloneAIInterviewer {
     // Reset button
     setTimeout(() => {
       if (voiceBtn) {
-        voiceBtn.innerHTML = '<span class="lm-btn-icon">🔊</span>Test Voice';
+        voiceBtn.innerHTML = `${this.getVolumeOnIcon(14)}<span style="margin-left:6px">Test Voice</span>`;
         voiceBtn.disabled = false;
       }
     }, 2000);
@@ -1161,11 +1154,11 @@ class StandaloneAIInterviewer {
     const notification = document.createElement('div');
     
     const colors = {
-      success: { bg: '#22c55e', border: '#16a34a', icon: '✅' },
-      error: { bg: '#ef4444', border: '#dc2626', icon: '❌' },
-      warning: { bg: '#f59e0b', border: '#d97706', icon: '⚠️' },
-      info: { bg: '#3b82f6', border: '#2563eb', icon: 'ℹ️' }
-    };
+      success: { bg: '#22c55e', border: '#16a34a' },
+      error: { bg: '#ef4444', border: '#dc2626' },
+      warning: { bg: '#f59e0b', border: '#d97706' },
+      info: { bg: '#3b82f6', border: '#2563eb' }
+    } as const;
     
     const color = colors[type];
     
@@ -1193,7 +1186,7 @@ class StandaloneAIInterviewer {
     `;
     
     notification.innerHTML = `
-      <span style="font-size: 16px;">${color.icon}</span>
+      <span style="display:inline-flex;align-items:center;justify-content:center">${this.getNotificationIcon(type)}</span>
       <span>${message}</span>
     `;
     
@@ -1214,6 +1207,58 @@ class StandaloneAIInterviewer {
         }
       }, 400);
     }, 4000);
+  }
+
+  private getNotificationIcon(type: 'success' | 'error' | 'warning' | 'info'): string {
+    const base = 'width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    switch (type) {
+      case 'success':
+        return `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
+      case 'error':
+        return `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
+      case 'warning':
+        return `<svg ${base}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+      case 'info':
+      default:
+        return `<svg ${base}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+    }
+  }
+
+  // Inline SVG icon helpers for UI elements
+  private svgBase(size: number) {
+    return `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  }
+
+  private getMicIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
+  }
+
+  private getSendIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
+  }
+
+  private getSettingsIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="M12 8a4 4 0 1 0 4 4 4 4 0 0 0-4-4Z"/><path d="M3.05 13a9 9 0 0 1 0-2l2.11-.35a1 1 0 0 0 .76-.57l1-1.73a1 1 0 0 0-.22-1.18L5.4 4.6a9 9 0 0 1 1.41-1.41l1.52 1.3a1 1 0 0 0 1.18.22l1.73-1a1 1 0 0 0 .57-.76L13 1.05a9 9 0 0 1 2 0l.35 2.11a1 1 0 0 0 .57.76l1.73 1a1 1 0 0 0 1.18-.22l1.3-1.52A9 9 0 0 1 21.4 4.6l-1.3 1.52a1 1 0 0 0-.22 1.18l1 1.73a1 1 0 0 0 .76.57L22.95 11a9 9 0 0 1 0 2l-2.11.35a1 1 0 0 0-.76.57l-1 1.73a1 1 0 0 0 .22 1.18l1.3 1.52a9 9 0 0 1-1.41 1.41l-1.52-1.3a1 1 0 0 0-1.18-.22l-1.73 1a1 1 0 0 0-.57.76L13 22.95a9 9 0 0 1-2 0l-.35-2.11a1 1 0 0 0-.57-.76l-1.73-1a1 1 0 0 0-1.18.22l-1.52 1.3A9 9 0 0 1 4.6 21.4l1.3-1.52a1 1 0 0 0 .22-1.18l-1-1.73a1 1 0 0 0-.76-.57Z"/></svg>`;
+  }
+
+  private getLightbulbIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="M9 18h6"/><path d="M10 22h4"/><path d="M2 11a10 10 0 1 1 20 0c0 3.93-2.67 5.05-4 7H6c-1.33-1.95-4-3.07-4-7Z"/></svg>`;
+  }
+
+  private getSkipIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="m7 7 10 10"/><path d="m17 7-10 10"/></svg>`;
+  }
+
+  private getVolumeOnIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19 12a7 7 0 0 0-7-7"/><path d="M19 12a7 7 0 0 1-7 7"/></svg>`;
+  }
+
+  private getVolumeOffIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+  }
+
+  private getTargetIcon(size = 16): string {
+    return `<svg ${this.svgBase(size)}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`;
   }
 
   private async handleUserMessage(message: string) {
@@ -1697,7 +1742,7 @@ class StandaloneAIInterviewer {
       });
       
       // Show a notification
-      this.showNotification('🎉 Solution Accepted! Great job!', 'success');
+      this.showNotification('Solution Accepted! Great job!', 'success');
     }
   }
 
@@ -1783,7 +1828,7 @@ class StandaloneAIInterviewer {
         
         // Check minimum recording duration
         if (recordingDuration < 0.5) {
-          this.showNotification('🎤 Recording too short. Please hold longer for voice input.', 'warning');
+          this.showNotification('Recording too short. Please hold longer for voice input.', 'warning');
           stream.getTracks().forEach(track => track.stop());
           return;
         }
@@ -1807,11 +1852,11 @@ class StandaloneAIInterviewer {
         voiceBtn.style.transform = 'scale(1.05)';
       }
       
-      this.showNotification('🎤 Recording... Hold Spacebar for at least 0.5 seconds', 'info');
+      this.showNotification('Recording... Hold Spacebar for at least 0.5 seconds', 'info');
       
     } catch (error) {
       console.error('❌ STANDALONE: Error starting recording:', error);
-      this.showNotification('❌ Could not access microphone. Please check permissions.', 'error');
+      this.showNotification('Could not access microphone. Please check permissions.', 'error');
     }
   }
 
@@ -1824,14 +1869,14 @@ class StandaloneAIInterviewer {
       
       const voiceBtn = document.getElementById('voice-record-btn') as HTMLButtonElement;
       if (voiceBtn) {
-        voiceBtn.innerHTML = '<span style="color: white; font-size: 18px;">🎤</span>';
+        voiceBtn.innerHTML = this.getMicIcon(18);
         voiceBtn.style.background = 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
         voiceBtn.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.3)';
         voiceBtn.style.animation = 'none';
         voiceBtn.style.transform = 'scale(1)';
       }
       
-      this.showNotification('🔄 Processing speech...', 'info');
+    this.showNotification('Processing speech...', 'info');
     }
   }
 
@@ -1843,14 +1888,14 @@ class StandaloneAIInterviewer {
       const now = Date.now();
       if (now - this.lastTranscriptionTime < this.transcriptionCooldown) {
         const remainingTime = Math.ceil((this.transcriptionCooldown - (now - this.lastTranscriptionTime)) / 1000);
-        this.showNotification(`⏳ Please wait ${remainingTime} seconds before trying again`, 'warning');
+        this.showNotification(`Please wait ${remainingTime} seconds before trying again`, 'warning');
         return;
       }
       
       // Check audio length (minimum 0.5 seconds)
       const audioDuration = audioBlob.size / 16000; // Rough estimate
       if (audioDuration < 0.5) {
-        this.showNotification('🎤 Recording too short. Please hold longer for voice input.', 'warning');
+        this.showNotification('Recording too short. Please hold longer for voice input.', 'warning');
         return;
       }
       
@@ -1870,7 +1915,7 @@ class StandaloneAIInterviewer {
           userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
           
           // Auto-send the transcribed message
-          this.showNotification('✅ Speech transcribed - sending message...', 'success');
+          this.showNotification('Speech transcribed - sending message...', 'success');
           setTimeout(() => {
             this.sendMessage();
           }, 500); // Small delay to show the transcription briefly
@@ -1885,13 +1930,13 @@ class StandaloneAIInterviewer {
       // Handle specific error types
       const errorMessage = error.toString();
       if (errorMessage.includes('insufficient_quota') || errorMessage.includes('quota')) {
-        this.showNotification('💳 API quota exceeded. Please check your OpenAI billing.', 'error');
+        this.showNotification('API quota exceeded. Please check your OpenAI billing.', 'error');
       } else if (errorMessage.includes('audio_too_short')) {
-        this.showNotification('🎤 Recording too short. Please hold longer for voice input.', 'warning');
+        this.showNotification('Recording too short. Please hold longer for voice input.', 'warning');
       } else if (errorMessage.includes('rate limit') || errorMessage.includes('Rate limit')) {
-        this.showNotification('⏳ Rate limit exceeded. Please wait a moment before trying again.', 'warning');
+        this.showNotification('Rate limit exceeded. Please wait a moment before trying again.', 'warning');
       } else {
-        this.showNotification('❌ Failed to process speech. Please try again.', 'error');
+        this.showNotification('Failed to process speech. Please try again.', 'error');
       }
     }
   }
@@ -1980,7 +2025,7 @@ class StandaloneAIInterviewer {
         
         audio.onplay = () => {
           console.log('🔊 STANDALONE: Playing AI response audio');
-          this.showNotification('🔊 Playing AI response...', 'info');
+          this.showNotification('Playing AI response...', 'info');
           this.showSkipButton(true);
         };
         
@@ -1992,7 +2037,7 @@ class StandaloneAIInterviewer {
         
         audio.onerror = (error) => {
           console.error('❌ STANDALONE: Audio playback error:', error);
-          this.showNotification('❌ Audio playback failed', 'error');
+          this.showNotification('Audio playback failed', 'error');
           this.currentAudio = null;
           this.showSkipButton(false);
         };
@@ -2018,7 +2063,7 @@ class StandaloneAIInterviewer {
 
   private skipCurrentVoice() {
     this.stopCurrentVoice();
-    this.showNotification('⏭️ Voice response skipped', 'info');
+    this.showNotification('Voice response skipped', 'info');
   }
 
   private showSkipButton(show: boolean) {
@@ -2034,17 +2079,17 @@ class StandaloneAIInterviewer {
     const voiceToggleBtn = document.getElementById('voice-toggle-btn');
     if (voiceToggleBtn) {
       if (this.voiceEnabled) {
-        voiceToggleBtn.innerHTML = '🔊 Voice ON';
+        voiceToggleBtn.innerHTML = `${this.getVolumeOnIcon(14)} <span style="margin-left:4px">Voice ON</span>`;
         voiceToggleBtn.style.background = 'rgba(34, 197, 94, 0.2)';
         voiceToggleBtn.style.borderColor = 'rgba(34, 197, 94, 0.4)';
         voiceToggleBtn.style.color = '#22c55e';
-        this.showNotification('🔊 Voice responses enabled', 'success');
+        this.showNotification('Voice responses enabled', 'success');
       } else {
-        voiceToggleBtn.innerHTML = '🔇 Voice OFF';
+        voiceToggleBtn.innerHTML = `${this.getVolumeOffIcon(14)} <span style=\"margin-left:4px\">Voice OFF</span>`;
         voiceToggleBtn.style.background = 'rgba(239, 68, 68, 0.2)';
         voiceToggleBtn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
         voiceToggleBtn.style.color = '#ef4444';
-        this.showNotification('🔇 Voice responses disabled', 'info');
+        this.showNotification('Voice responses disabled', 'info');
       }
     }
   }
@@ -2077,7 +2122,7 @@ class StandaloneAIInterviewer {
       speedFastBtn.style.borderColor = 'rgba(59, 130, 246, 0.5)';
     }
     
-    this.showNotification(`🔊 Voice speed set to ${speed}x`, 'success');
+    this.showNotification(`Voice speed set to ${speed}x`, 'success');
   }
 
   private isTypingInInput(): boolean {

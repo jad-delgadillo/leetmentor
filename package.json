@@ -15,7 +15,8 @@
     "test-react": "cd src/content && python3 -m http.server 3000",
     "dev:ui": "webpack --mode development --watch --config webpack.standalone.config.js",
     "dev:react": "concurrently \"npm run dev:ui\" \"npm run test-react\"",
-    "dev:full": "concurrently \"npm run dev:ui\" \"npm run test-react\" \"echo 🎉 Development server running at http://localhost:3000/react-test.html\""
+    "dev:full": "concurrently \"npm run dev:ui\" \"npm run test-react\" \"echo 🎉 Development server running at http://localhost:3000/react-test.html\"",
+    "proxy": "node backend/server.js"
   },
   "keywords": [
     "leetcode",
@@ -59,11 +60,13 @@
     "@radix-ui/react-switch": "^1.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "dotenv": "^17.2.1",
     "lucide-react": "^0.292.0",
     "monaco-editor": "^0.44.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.1.0",
-    "tailwindcss": "^3.3.6"
+    "tailwindcss": "^3.3.6",
+    "ws": "^8.18.3"
   }
 }

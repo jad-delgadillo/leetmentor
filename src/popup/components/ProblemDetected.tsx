@@ -1,6 +1,6 @@
 import React from 'react';
 import { LeetCodeProblem } from '../../types/leetcode';
-import { Play, Settings, ExternalLink, Clock, Tag } from 'lucide-react';
+import { Play, Settings, ExternalLink, Clock, Tag, Lightbulb } from 'lucide-react';
 import { getDifficultyColor } from '../../shared/utils';
 
 interface ProblemDetectedProps {
@@ -52,6 +52,7 @@ const ProblemDetected: React.FC<ProblemDetectedProps> = ({
                     <button
                         onClick={() => window.open(problem.url, '_blank')}
                         className="btn-ghost p-2"
+                        aria-label="Open problem in new tab"
                         title="Open problem in new tab"
                     >
                         <ExternalLink className="w-4 h-4" />
@@ -136,7 +137,9 @@ const ProblemDetected: React.FC<ProblemDetectedProps> = ({
             {/* Quick Tips */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <div className="text-sm">
-                    <span className="font-medium text-yellow-800">💡 Pro tip:</span>
+                    <span className="inline-flex items-center gap-1 font-medium text-yellow-800">
+                        <Lightbulb className="w-4 h-4" /> Pro tip:
+                    </span>
                     <span className="text-yellow-700 ml-1">
                         Enable voice features for the most realistic interview experience!
                     </span>

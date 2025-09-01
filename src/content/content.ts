@@ -1560,22 +1560,7 @@ class LeetCodeDetector {
     speedContainer.appendChild(speedLabel);
     speedContainer.appendChild(speedButtonsContainer);
 
-    // Voice mode toggle
-    const modeToggle = document.createElement('button');
-    modeToggle.id = 'leetmentor-mode-toggle';
-    modeToggle.style.cssText = `
-      background: #f1f5f9;
-      color: #64748b;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
-      padding: 4px 8px;
-      cursor: pointer;
-      font-size: 10px;
-      font-weight: 500;
-      transition: all 0.2s;
-    `;
-    modeToggle.textContent = 'Traditional';
-    modeToggle.title = 'Switch to Realtime API';
+    // Realtime mode disabled: hide mode toggle
 
     // Event listeners
     micButton.addEventListener('click', () => {
@@ -1590,9 +1575,7 @@ class LeetCodeDetector {
       this.stopSpeaking();
     });
 
-    modeToggle.addEventListener('click', () => {
-      this.toggleVoiceMode();
-    });
+    // Mode toggle disabled
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -1614,7 +1597,7 @@ class LeetCodeDetector {
     buttonArea.appendChild(micButton);
     buttonArea.appendChild(stopButton);
     buttonArea.appendChild(speedContainer);
-    buttonArea.appendChild(modeToggle);
+    // Mode toggle removed
 
     voiceContainer.appendChild(statusArea);
     voiceContainer.appendChild(buttonArea);
@@ -1821,6 +1804,9 @@ class LeetCodeDetector {
           this.voiceService.setUseOpenAIWhisper(true);
           
           this.realtimeService.setApiKey(this.embeddedConfig.apiKey);
+          if (this.embeddedConfig.realtimeProxyUrl) {
+            this.realtimeService.setProxyUrl(this.embeddedConfig.realtimeProxyUrl);
+          }
           
           this.isVoiceEnabled = this.embeddedConfig.voice?.enabled && this.embeddedConfig.speechRecognition?.enabled;
           
@@ -2304,4 +2290,3 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     }
   };
 }
-

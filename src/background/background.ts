@@ -34,24 +34,22 @@ class BackgroundService {
     // Add webNavigation listener for SPA navigation
     chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
       console.log('🔄 Background: History state updated:', details.url);
-      
+
       // Only handle main frame navigation
       if (details.frameId !== 0) return;
-      
-      // Only handle LeetCode problem pages
-      if (!/https:\/\/leetcode\.com\/(problems|studyplan|explore)/.test(details.url)) return;
 
-      console.log('✅ Background: Re-injecting content script for SPA navigation');
+      // Only handle LeetCode domains
+      if (!/https:\/\/leetcode\.(com|cn)\//.test(details.url)) return;
 
+      // Notify existing content script instead of reinjecting (avoid duplicates)
       try {
-        await chrome.scripting.executeScript({
-          target: { tabId: details.tabId },
-          files: ['content-standalone.js'], // Use standalone content script
-          world: 'ISOLATED',
+        await chrome.tabs.sendMessage(details.tabId, {
+          type: 'NAVIGATION_DETECTED',
+          data: { url: details.url }
         });
-        console.log('✅ Background: Content script re-injected successfully');
+        console.log('✅ Background: Notified content script of SPA navigation');
       } catch (e) {
-        console.warn('❌ Background: Content script re-injection failed:', e);
+        console.warn('⚠️ Background: Could not notify content script (it may not be ready yet)');
       }
     });
   }
@@ -75,7 +73,10 @@ class BackgroundService {
         interimResults: true
       },
       interviewMode: 'intermediate',
-      practiceAreas: ['algorithms', 'data-structures']
+      practiceAreas: ['algorithms', 'data-structures'],
+      // Optional public WSS endpoint to your local proxy (e.g., ngrok/cloudflared)
+      // Example: wss://<your-subdomain>.trycloudflare.com
+      realtimeProxyUrl: 'wss://d7ab8798f4f9.ngrok-free.app/'
     };
 
     const result = await chrome.storage.sync.get(['config']);
@@ -255,13 +256,14 @@ class BackgroundService {
     }
 
     try {
-      // Enhanced system prompt based on interview phase
-      const systemPrompt = this.buildInterviewerPrompt(problem, interviewPhase);
-
-      // Build conversation with proper context
+      // Concise prompt + last-N history window
+      const conciseSystem = `You are a technical interviewer. Keep answers 1–2 sentences. Ask questions, avoid lecturing. Do not restate the problem. Focus on thought process, complexity, trade‑offs.`;
+      const minimalProblem = `Problem: ${problem?.title || 'Unknown'} (${problem?.difficulty || 'Unknown'}). Phase: ${interviewPhase}`;
+      const lastN = (conversationHistory || []).slice(-8);
       const messages = [
-        { role: 'system', content: systemPrompt },
-        ...conversationHistory,
+        { role: 'system', content: conciseSystem },
+        { role: 'system', content: minimalProblem },
+        ...lastN,
         { role: 'user', content: message }
       ];
 
@@ -272,9 +274,9 @@ class BackgroundService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: data.config.model || 'gpt-4',
+          model: data.config.model || 'gpt-4o',
           messages: messages,
-          max_tokens: 400,
+          max_tokens: 200,
           temperature: 0.7,
           presence_penalty: 0.1,
           frequency_penalty: 0.1
@@ -454,86 +456,23 @@ Difficulty: ${problem?.difficulty || 'Unknown'}`
         return;
       }
 
-      // Build messages for the OpenAI API
+      // Keep prompts concise and use last-N window to reduce tokens
+      const conciseSystem = {
+        role: 'system',
+        content: `You are a technical interviewer. Keep answers to 1–2 sentences, ask questions, avoid lecturing. Do not restate the problem. Focus on thought process, complexity, and trade‑offs.`
+      } as const;
+
+      const minimalProblem = {
+        role: 'system',
+        content: `Problem: ${problem.title} (${problem.difficulty}). Status: ${hasAcceptedSubmission ? 'ACCEPTED' : 'PENDING'}.`
+      } as const;
+
+      const lastN = (conversationHistory || []).slice(-8);
       const messages = [
-        {
-          role: 'system',
-          content: `You are a senior software engineer conducting a technical coding interview at a top tech company (Google/Meta/Amazon level). You're interviewing for a Software Engineer position.
-
-PROBLEM CONTEXT:
-- Title: ${problem.title}
-- Difficulty: ${problem.difficulty}
-- URL: ${problem.url}
-- Submission Status: ${hasAcceptedSubmission ? 'ACCEPTED - Solution working' : 'Not yet submitted'}
-
-IMPORTANT: The candidate can see the full problem description on the LeetCode page. DO NOT repeat or summarize the problem description unless they specifically ask for clarification. Focus on the interview process, not explaining what they can already read.
-
-INTERVIEW METHODOLOGY - Follow this structured approach:
-
-1. PROBLEM UNDERSTANDING (First 5-10 minutes):
-   - Ask them to explain the problem in their own words
-   - Ask clarifying questions about inputs/outputs, constraints, edge cases
-   - Have them walk through examples
-   - "Can you explain the problem back to me in your own words?"
-
-2. APPROACH DISCUSSION (Next 10-15 minutes):
-   - Ask: "What approaches come to mind for solving this?"
-   - Discuss multiple approaches (brute force first, then optimizations)
-   - For each approach, ALWAYS ask: "What would be the time and space complexity?"
-   - Guide them toward the optimal solution through Socratic questioning
-   - "Have you seen similar problems? What patterns might apply here?"
-
-3. IMPLEMENTATION (Next 15-20 minutes):
-   - Once approach is clear, ask them to implement in the LeetCode editor
-   - "Now let's implement this. Please use the LeetCode code editor to write your solution."
-   - While they code, engage with questions about their implementation choices
-   - Ask about edge cases: "What if the input is empty? What about null values?"
-
-4. ANALYSIS & OPTIMIZATION (Final 10-15 minutes):
-   - After implementation: "Walk me through your solution. What's the time complexity?"
-   - "What's the space complexity? Can we optimize either?"
-   - "Are there any edge cases we should consider?"
-   - "How would this perform with very large inputs?"
-
-CONVERSATION STYLE:
-- Be professional but friendly - like a colleague, not a teacher
-- Ask probing questions that real interviewers ask
-- Challenge assumptions: "Are you sure about that complexity analysis?"
-- Use phrases like: "Interesting approach", "That's a good start", "Let's think about this together"
-- When they get stuck: "What's your intuition telling you here?"
-- For hints: "What if we tried a different data structure?"
-- Keep responses concise and focused - avoid long explanations
-
-COMPLEXITY ANALYSIS - ALWAYS ASK:
-- "What's the time complexity of this approach and why?"
-- "What about space complexity?"
-- "Can we do better than O(n²)?"
-- "What's the trade-off between time and space here?"
-
-TECHNICAL DEPTH:
-- Ask about algorithm choices: "Why did you choose this data structure?"
-- Discuss alternatives: "What other approaches did you consider?"
-- Test understanding: "How would you modify this for [variant scenario]?"
-
-IMPORTANT NOTES:
-- The candidate writes code in LeetCode editor, not chat
-- System auto-detects accepted submissions
-- Maintain interview pressure but be encouraging
-- Focus on problem-solving process, not just correct answers
-- Real interviews are collaborative - guide them to success
-- If they've already submitted successfully, focus on discussion rather than asking them to implement again
-- After success, transition to optimization discussion or move to next problem
-- Keep responses short and to the point - this is a voice conversation
-
-CURRENT STATUS: ${hasAcceptedSubmission ? 'SOLUTION ACCEPTED - Focus on analysis, optimization, and follow-up questions. Do not ask them to implement again.' : 'NO SUBMISSION YET - Continue with normal interview flow.'}`
-        },
-        // Add conversation history
-        ...conversationHistory,
-        // Add current user message
-        {
-          role: 'user',
-          content: userMessage
-        }
+        conciseSystem,
+        minimalProblem,
+        ...lastN,
+        { role: 'user', content: userMessage }
       ];
 
       console.log('🤖 Background: Sending request to OpenAI API...');
@@ -546,9 +485,9 @@ CURRENT STATUS: ${hasAcceptedSubmission ? 'SOLUTION ACCEPTED - Focus on analysis
           'Authorization': `Bearer ${config.apiKey}`
         },
         body: JSON.stringify({
-          model: config.model || 'gpt-4',
+          model: config.model || 'gpt-4o',
           messages: messages,
-          max_tokens: 150, // Shorter responses for faster voice
+          max_tokens: 150, // concise for voice
           temperature: 0.7
         })
       });

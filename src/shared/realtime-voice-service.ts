@@ -12,6 +12,9 @@ export class RealtimeVoiceService {
   private isSpeaking = false;
   private apiKey: string = '';
   private sessionId: string = '';
+  private hasPendingAudio: boolean = false;
+  private proxyUrlOverride: string | null = null;
+  private sessionConfigured: boolean = false;
 
   // Singleton pattern to prevent multiple instances
   static getInstance(): RealtimeVoiceService {
@@ -25,6 +28,7 @@ export class RealtimeVoiceService {
   private audioQueue: Float32Array[] = [];
   private isPlaying = false;
   private gainNode: GainNode | null = null;
+  private workletLoaded = false;
   
   // Voice Activity Detection
   private vadEnabled = true;
@@ -63,6 +67,13 @@ export class RealtimeVoiceService {
   // Configuration
   setApiKey(apiKey: string) {
     this.apiKey = apiKey;
+  }
+
+  setProxyUrl(url?: string) {
+    if (url && typeof url === 'string' && url.trim().length > 0) {
+      this.proxyUrlOverride = url.trim();
+      console.log('LeetMentor Realtime: Using custom proxy URL:', this.proxyUrlOverride);
+    }
   }
 
   // Event listeners
@@ -119,15 +130,20 @@ export class RealtimeVoiceService {
             if (data.type === 'connection_status' && data.status === 'connected') {
               console.log('LeetMentor Realtime: Backend connected to OpenAI!');
               this.isConnected = true;
-              // Small delay to ensure session is fully ready
+              // Wait for session.created from OpenAI before configuring session
+              resolve();
+              // Fallback: if for some reason session.created isn't observed, configure after a short delay
               setTimeout(() => {
-                this.initializeSession();
-                resolve();
-              }, 500);
+                if (!this.sessionConfigured) {
+                  console.log('LeetMentor Realtime: Fallback initializing session (no session.created observed)');
+                  try { this.initializeSession(); } catch {}
+                }
+              }, 1500);
             } else if (data.type === 'connection_status' && data.status === 'disconnected') {
               console.warn('LeetMentor Realtime: Upstream disconnected:', data.message);
               this.isConnected = false;
               this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
+              this.sessionConfigured = false;
               // Pause audio capture immediately
               if (this.isListening) {
                 this.stopListening();
@@ -137,6 +153,7 @@ export class RealtimeVoiceService {
               console.error('LeetMentor Realtime: Connection failed permanently:', data.message);
               this.isConnected = false;
               this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
+              this.sessionConfigured = false;
               this.onSpeechError?.(data.message || 'Connection failed after multiple attempts');
               // Stop trying to use the service
               if (this.isListening) {
@@ -146,6 +163,7 @@ export class RealtimeVoiceService {
               console.warn('LeetMentor Realtime: Connection replaced by newer instance:', data.message);
               this.isConnected = false;
               this.sessionConfigurationStage = 'minimal'; // Reset configuration stage
+              this.sessionConfigured = false;
               // Gracefully handle being replaced - don't show error to user
               if (this.isListening) {
                 this.stopListening();
@@ -168,6 +186,7 @@ export class RealtimeVoiceService {
           console.log('LeetMentor Realtime: Disconnected from backend proxy');
           this.isConnected = false;
           this.sessionConfigurationStage = 'minimal'; // Reset configuration stage on disconnect
+          this.sessionConfigured = false;
         };
 
         this.websocket!.onerror = (error) => {
@@ -184,62 +203,39 @@ export class RealtimeVoiceService {
   }
 
   private getProxyUrl(): string {
-    // Try different backend locations
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                         window.location.protocol === 'chrome-extension:';
-    
-    if (isDevelopment) {
-      return 'ws://localhost:8080';
-    } else {
-      // Production deployment URL (we'll update this when deployed)
-      return 'wss://your-app.railway.app'; // Will be updated
-    }
+    if (this.proxyUrlOverride) return this.proxyUrlOverride;
+    // Prefer local proxy during extension development and localhost
+    const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
+    const isLocalHost = window.location.hostname === 'localhost';
+    if (isExtension || isLocalHost) return 'ws://localhost:8080';
+    // Production deployment URL (update when deployed)
+    return 'wss://d7ab8798f4f9.ngrok-free.app/';
   }
 
   private initializeSession() {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+    if (this.sessionConfigured) {
+      console.log('LeetMentor Realtime: Session already configured');
+      return;
+    }
 
-    // Start with MINIMAL configuration to avoid immediate 1000 closure
+    // Configure minimal, stable session parameters
     const minimalSessionConfig = {
       type: 'session.update',
       session: {
         modalities: ['text', 'audio'],
-        instructions: 'You are a helpful AI assistant for coding interview practice. Be conversational and encouraging.'
-        // INTENTIONALLY minimal - we'll add more after confirming stability
-      }
-    };
-
-    console.log('LeetMentor Realtime: Sending minimal session configuration...');
-    this.websocket.send(JSON.stringify(minimalSessionConfig));
-    console.log('LeetMentor Realtime: Minimal session configuration sent - waiting for confirmation');
-  }
-
-  private sendEnhancedSessionConfig() {
-    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
-
-    // Enhanced configuration sent AFTER we confirm the minimal one works
-    const enhancedSessionConfig = {
-      type: 'session.update',
-      session: {
-        modalities: ['text', 'audio'],
         instructions: 'You are a helpful AI assistant for coding interview practice. Be conversational and encouraging.',
-        voice: 'alloy',
-        input_audio_format: 'pcm16',
-        output_audio_format: 'pcm16',
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 200
-        },
-        temperature: 0.8
+        voice: 'alloy'
       }
     };
 
-    console.log('LeetMentor Realtime: Sending enhanced session configuration...');
-    this.websocket.send(JSON.stringify(enhancedSessionConfig));
-    console.log('LeetMentor Realtime: Enhanced session configuration sent');
+    console.log('LeetMentor Realtime: Sending session configuration...');
+    this.websocket.send(JSON.stringify(minimalSessionConfig));
+    console.log('LeetMentor Realtime: Session configuration sent - waiting for confirmation');
+    this.sessionConfigured = true;
   }
+
+  // No enhanced session configuration for now; keep stable minimal config
 
   private sessionConfigurationStage: 'minimal' | 'enhanced' | 'complete' = 'minimal';
 
@@ -250,23 +246,13 @@ export class RealtimeVoiceService {
       case 'session.created':
         this.sessionId = message.session.id;
         console.log('LeetMentor Realtime: Session created successfully:', this.sessionId);
+        // Configure session once after creation
+        try { this.initializeSession(); } catch {}
         break;
         
       case 'session.updated':
-        console.log('LeetMentor Realtime: Session updated successfully, stage:', this.sessionConfigurationStage);
-        
-        // Progressive enhancement after confirming each stage works
-        if (this.sessionConfigurationStage === 'minimal') {
-          console.log('LeetMentor Realtime: Minimal config successful, sending enhanced config...');
-          this.sessionConfigurationStage = 'enhanced';
-          // Wait a bit to ensure the minimal config is fully processed
-          setTimeout(() => {
-            this.sendEnhancedSessionConfig();
-          }, 100);
-        } else if (this.sessionConfigurationStage === 'enhanced') {
-          console.log('LeetMentor Realtime: Enhanced config successful, session fully ready!');
-          this.sessionConfigurationStage = 'complete';
-        }
+        console.log('LeetMentor Realtime: Session updated successfully');
+        this.sessionConfigurationStage = 'complete';
         break;
         
       case 'error':
@@ -286,6 +272,8 @@ export class RealtimeVoiceService {
         console.log('LeetMentor Realtime: Speech stopped');
         this.isListening = false;
         this.onSpeechEnd?.();
+        // Commit and trigger response when speech stops
+        try { this.sendSilenceToRealtime(); } catch {}
         break;
 
       case 'conversation.item.input_audio_transcription.completed':
@@ -445,45 +433,86 @@ export class RealtimeVoiceService {
 
       // Create audio processing pipeline
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-      
-      // Create simple VAD using ScriptProcessorNode (deprecated but works)
-      const processor = this.audioContext.createScriptProcessor(1024, 1, 1);
-      
-      processor.onaudioprocess = (event) => {
-        const inputData = event.inputBuffer.getChannelData(0);
-        
-        // Simple VAD based on RMS energy
-        let sum = 0;
-        for (let i = 0; i < inputData.length; i++) {
-          sum += inputData[i] * inputData[i];
-        }
-        const rms = Math.sqrt(sum / inputData.length);
-        
-        // Send audio to OpenAI (convert to PCM16)
-        this.sendAudioToRealtime(inputData);
-        
-        // Voice activity detection
-        if (this.vadEnabled) {
-          if (rms > this.speechStartThreshold) {
-            if (this.speechEndTimer) {
-              clearTimeout(this.speechEndTimer);
-              this.speechEndTimer = null;
-            }
-          } else {
-            if (!this.speechEndTimer && this.isListening) {
-              this.speechEndTimer = setTimeout(() => {
-                // Silence detected
-                this.sendSilenceToRealtime();
-              }, this.speechEndTimeout);
+
+      // Prefer AudioWorkletNode to avoid deprecation warnings and reduce latency
+      try {
+        await this.ensureAudioWorkletLoaded();
+        const workletNode = new AudioWorkletNode(this.audioContext, 'lm-capture', {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          channelCount: 1
+        });
+
+        workletNode.port.onmessage = (event) => {
+          const inputData = event.data as Float32Array;
+          if (!inputData || inputData.length === 0) return;
+
+          // Simple VAD based on RMS energy
+          let sum = 0;
+          for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+          const rms = Math.sqrt(sum / inputData.length);
+
+          // Send audio to OpenAI (convert to PCM16)
+          this.sendAudioToRealtime(inputData);
+
+          // Voice activity detection
+          if (this.vadEnabled) {
+            if (rms > this.speechStartThreshold) {
+              if (this.speechEndTimer) {
+                clearTimeout(this.speechEndTimer);
+                this.speechEndTimer = null;
+              }
+            } else {
+              if (!this.speechEndTimer && this.isListening) {
+                this.speechEndTimer = setTimeout(() => {
+                  // Silence detected
+                  this.sendSilenceToRealtime();
+                }, this.speechEndTimeout);
+              }
             }
           }
-        }
-      };
+        };
 
-      source.connect(processor);
-      processor.connect(this.audioContext.destination);
+        // Connect microphone to worklet; no need to route to destination
+        source.connect(workletNode);
+        console.log('LeetMentor Realtime: Microphone activated via AudioWorklet');
+      } catch (e) {
+        console.warn('LeetMentor Realtime: AudioWorklet unavailable, falling back to ScriptProcessorNode', e);
 
-      console.log('LeetMentor Realtime: Microphone activated with VAD');
+        const processor = this.audioContext.createScriptProcessor(1024, 1, 1);
+        processor.onaudioprocess = (event) => {
+          const inputData = event.inputBuffer.getChannelData(0);
+
+          // Simple VAD based on RMS energy
+          let sum = 0;
+          for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
+          const rms = Math.sqrt(sum / inputData.length);
+
+          // Send audio to OpenAI (convert to PCM16)
+          this.sendAudioToRealtime(inputData);
+
+          // Voice activity detection
+          if (this.vadEnabled) {
+            if (rms > this.speechStartThreshold) {
+              if (this.speechEndTimer) {
+                clearTimeout(this.speechEndTimer);
+                this.speechEndTimer = null;
+              }
+            } else {
+              if (!this.speechEndTimer && this.isListening) {
+                this.speechEndTimer = setTimeout(() => {
+                  // Silence detected
+                  this.sendSilenceToRealtime();
+                }, this.speechEndTimeout);
+              }
+            }
+          }
+        };
+
+        source.connect(processor);
+        // Do not connect to destination to avoid echo/noise
+        console.log('LeetMentor Realtime: Microphone activated with ScriptProcessor fallback');
+      }
 
     } catch (error) {
       console.error('Failed to start realtime listening:', error);
@@ -491,6 +520,34 @@ export class RealtimeVoiceService {
       const errorMessage = error instanceof Error ? error.message : 'Failed to access microphone';
       this.onSpeechError?.(errorMessage);
     }
+  }
+
+  private async ensureAudioWorkletLoaded() {
+    if (!this.audioContext) throw new Error('AudioContext not initialized');
+    if (this.workletLoaded) return;
+
+    const workletCode = `
+      class LMCaptureProcessor extends AudioWorkletProcessor {
+        constructor() { super(); }
+        process(inputs) {
+          const input = inputs[0];
+          if (!input || input.length === 0) return true;
+          const channelData = input[0];
+          // Copy to transferable buffer to avoid referencing internal memory
+          const copy = new Float32Array(channelData.length);
+          copy.set(channelData);
+          this.port.postMessage(copy, [copy.buffer]);
+          return true;
+        }
+      }
+      registerProcessor('lm-capture', LMCaptureProcessor);
+    `;
+
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    await this.audioContext.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+    this.workletLoaded = true;
   }
 
   private sendAudioToRealtime(float32Data: Float32Array) {
@@ -512,10 +569,12 @@ export class RealtimeVoiceService {
     };
 
     this.websocket.send(JSON.stringify(audioMessage));
+    this.hasPendingAudio = true;
   }
 
   private sendSilenceToRealtime() {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+    if (!this.hasPendingAudio) return; // Nothing to commit
 
     // Commit the audio buffer (tells OpenAI to process what we've sent)
     const commitMessage = {
@@ -524,6 +583,16 @@ export class RealtimeVoiceService {
 
     this.websocket.send(JSON.stringify(commitMessage));
     console.log('LeetMentor Realtime: Audio committed for processing');
+
+    // Create a response so the model replies using buffered input
+    const responseMessage = {
+      type: 'response.create',
+      response: {
+        modalities: ['text', 'audio']
+      }
+    };
+    this.websocket.send(JSON.stringify(responseMessage));
+    this.hasPendingAudio = false;
   }
 
   // Barge-in support
@@ -557,7 +626,9 @@ export class RealtimeVoiceService {
       this.speechEndTimer = null;
     }
 
-    console.log('LeetMentor Realtime: Stopped listening');
+      // On manual stop (e.g., spacebar release), commit any pending audio and trigger response
+      try { this.sendSilenceToRealtime(); } catch {}
+      console.log('LeetMentor Realtime: Stopped listening');
   }
 
   stopSpeaking() {

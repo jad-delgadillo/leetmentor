@@ -36,6 +36,10 @@ interface StandaloneInterfaceProps {
     isInterviewActive?: boolean;
     isTyping?: boolean;
     isListening?: boolean;
+    currentTranscript?: string;
+    voiceMode?: 'traditional' | 'realtime';
+    onToggleVoiceMode?: () => void;
+    usageTotals?: { prompt: number; completion: number; total: number; costUsd: number; model?: string };
 }
 
 const StandaloneInterface: React.FC<StandaloneInterfaceProps> = ({
@@ -53,7 +57,11 @@ const StandaloneInterface: React.FC<StandaloneInterfaceProps> = ({
     messages = [],
     isInterviewActive = false,
     isTyping = false,
-    isListening = false
+    isListening = false,
+    currentTranscript,
+    voiceMode = 'traditional',
+    onToggleVoiceMode,
+    usageTotals
 }) => {
     console.log('🔧 StandaloneInterface called with:', {
         problem,
@@ -105,19 +113,14 @@ const StandaloneInterface: React.FC<StandaloneInterfaceProps> = ({
     };
 
     return (
-        <div className="
-            leetmentor-card relative z-50 overflow-hidden m-6 
-            bg-gradient-to-br from-white via-white to-gray-50/50
-            animate-fade-in-scale
-        ">
-            {/* Decorative gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/3 via-purple-500/2 to-green-500/3 pointer-events-none"></div>
+        <div className="relative z-50 overflow-hidden m-6 rounded-xl border border-gray-200 bg-white shadow-sm animate-fade-in-scale">
 
             {/* Main content */}
             <div className="relative z-10">
                 <InterviewHeader
                     status={isInterviewActive ? 'active' : 'ready'}
                     onSettingsClick={handleSettingsClick}
+                    usage={usageTotals ? { totalTokens: usageTotals.total, costUsd: usageTotals.costUsd, model: usageTotals.model } : undefined}
                 />
 
                 <ProblemInfo
@@ -149,12 +152,14 @@ const StandaloneInterface: React.FC<StandaloneInterfaceProps> = ({
                         isVisible={isInterviewActive}
                         isTyping={isTyping}
                         isListening={isListening}
+                        currentTranscript={currentTranscript}
+                        voiceMode={voiceMode}
+                        onToggleVoiceMode={onToggleVoiceMode}
                     />
                 </div>
             </div>
 
-            {/* Bottom accent line */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 opacity-60"></div>
+            {/* Footer border accent intentionally minimal for a cleaner look */}
         </div>
     );
 };

@@ -214,24 +214,40 @@ export class VoiceService {
 
   private async startWhisperListening(settings: SpeechRecognitionSettings) {
     console.log('LeetMentor: Starting Whisper speech recognition for better accent support');
-    
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       this.audioChunks = [];
-      this.mediaRecorder = new MediaRecorder(stream);
-      
+
+      // Pick a supported audio container (prefer webm/opus)
+      let chosenMime = '';
+      if ((window as any).MediaRecorder && (MediaRecorder as any).isTypeSupported) {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          chosenMime = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          chosenMime = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+          chosenMime = 'audio/ogg;codecs=opus';
+        }
+      }
+
+      this.mediaRecorder = new MediaRecorder(stream, chosenMime ? { mimeType: chosenMime } : undefined);
+      console.log('LeetMentor: MediaRecorder started with mimeType:', this.mediaRecorder.mimeType || chosenMime || 'default');
+
       this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           this.audioChunks.push(event.data);
         }
       };
 
       this.mediaRecorder.onstop = async () => {
         try {
-          const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+          // Use the recorder's mimeType if available, fallback to first chunk type
+          const blobType = (this.mediaRecorder && this.mediaRecorder.mimeType) || (this.audioChunks[0] && this.audioChunks[0].type) || chosenMime || 'audio/webm';
+          const audioBlob = new Blob(this.audioChunks, { type: blobType });
           const transcription = await this.transcribeWithWhisper(audioBlob, settings.language);
-          
+
           if (transcription.trim()) {
             console.log('LeetMentor: Whisper transcription:', transcription);
             this.onSpeechResult?.(transcription.trim(), true);
@@ -240,7 +256,7 @@ export class VoiceService {
           console.error('Whisper transcription error:', error);
           this.onSpeechError?.('Transcription failed');
         }
-        
+
         // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
       };
@@ -250,11 +266,8 @@ export class VoiceService {
         this.onSpeechStart?.();
       };
 
-      // Start recording
+      // Start recording (no time slice, we gather until manual stop)
       this.mediaRecorder.start();
-      
-      // Note: Recording will continue until manually stopped - no time limit
-
     } catch (error) {
       console.error('Failed to start Whisper recording:', error);
       throw error;
@@ -262,12 +275,27 @@ export class VoiceService {
   }
 
   private async transcribeWithWhisper(audioBlob: Blob, language: string): Promise<string> {
+    const blobType = audioBlob.type || 'audio/webm';
+    // Map mime type to file extension for Whisper
+    const ext = (() => {
+      if (blobType.includes('webm')) return 'webm';
+      if (blobType.includes('ogg')) return 'ogg';
+      if (blobType.includes('mp3') || blobType.includes('mpeg')) return 'mp3';
+      if (blobType.includes('wav') || blobType.includes('wave')) return 'wav';
+      if (blobType.includes('m4a')) return 'm4a';
+      if (blobType.includes('mp4')) return 'mp4';
+      if (blobType.includes('flac')) return 'flac';
+      return 'webm';
+    })();
+
+    const file = new File([audioBlob], `audio.${ext}` , { type: blobType });
+
     const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.wav');
+    formData.append('file', file);
     formData.append('model', 'whisper-1');
-    formData.append('language', 'en'); // English for Mexican-English speakers
-    formData.append('response_format', 'verbose_json'); // Get more detailed results
-    
+    formData.append('language', (language || 'en').split('-')[0]); // e.g., en-US -> en
+    formData.append('response_format', 'verbose_json');
+
     // Add prompt to help with Mexican English accent recognition
     formData.append('prompt', 'This is a conversation about coding and programming concepts. The speaker may have a Mexican English accent. Common technical terms: algorithm, function, variable, array, string, integer, boolean, loop, condition, complexity, solution, problem, test case, edge case, runtime, space, time, Big O notation.');
 
@@ -286,8 +314,8 @@ export class VoiceService {
     }
 
     const result = await response.json();
-    console.log('🎤 Whisper transcription confidence:', result.segments?.map(s => s.avg_logprob) || 'N/A');
-    
+    console.log('🎤 Whisper transcription confidence:', result.segments?.map((s: any) => s.avg_logprob) || 'N/A');
+
     return result.text || '';
   }
 

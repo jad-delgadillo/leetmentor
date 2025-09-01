@@ -1,6 +1,6 @@
 import { ChatGPTMessage, ChatGPTRequest, ChatGPTResponse } from '@/types/api';
 import { LeetCodeProblem } from '@/types/leetcode';
-import { API_ENDPOINTS, INTERVIEW_PROMPTS } from './constants';
+import { API_ENDPOINTS, INTERVIEW_PROMPTS, MODEL_PRICING_USD_PER_1K } from './constants';
 
 export class InterviewUtils {
   /**
@@ -109,8 +109,14 @@ export class InterviewUtils {
 export class ChatGPTService {
   private apiKey: string;
   private model: string;
+  private conversationSummary: string = '';
+  private summaryMaxChars = 600;
+  private historyWindow = 8; // last-N window
 
-  constructor(apiKey: string, model: string = 'gpt-4') {
+  public lastUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null = null;
+  public totals = { prompt: 0, completion: 0, total: 0, costUsd: 0 };
+
+  constructor(apiKey: string, model: string = 'gpt-4o') {
     this.apiKey = apiKey;
     this.model = model;
   }
@@ -124,6 +130,21 @@ export class ChatGPTService {
     
     try {
       const response = await this.sendChatRequest(messages);
+      // Capture usage
+      if ((response as any).usage) {
+        const u = (response as any).usage;
+        this.lastUsage = {
+          prompt_tokens: u.prompt_tokens || 0,
+          completion_tokens: u.completion_tokens || 0,
+          total_tokens: u.total_tokens || (u.prompt_tokens || 0) + (u.completion_tokens || 0)
+        };
+        const pricing = (MODEL_PRICING_USD_PER_1K as any)[this.model] || MODEL_PRICING_USD_PER_1K['gpt-4o'];
+        const cost = ((this.lastUsage.prompt_tokens / 1000) * pricing.input) + ((this.lastUsage.completion_tokens / 1000) * pricing.output);
+        this.totals.prompt += this.lastUsage.prompt_tokens;
+        this.totals.completion += this.lastUsage.completion_tokens;
+        this.totals.total += this.lastUsage.total_tokens;
+        this.totals.costUsd += cost;
+      }
       return response.choices[0]?.message?.content || 'I apologize, but I couldn\'t generate a response. Please try again.';
     } catch (error) {
       console.error('ChatGPT API error:', error);
@@ -151,44 +172,36 @@ export class ChatGPTService {
     history: ChatGPTMessage[],
     userMessage: string
   ): ChatGPTMessage[] {
+    // 1) Concise system instruction
     const systemMessage: ChatGPTMessage = {
       role: 'system',
-      content: `${INTERVIEW_PROMPTS.SYSTEM_PROMPT}
-
-Current Problem:
-Title: ${problem.title}
-Difficulty: ${problem.difficulty}
-Description: ${problem.description}
-
-Interview Guidelines:
-- Use conversational language and vary your responses to sound natural
-- Ask follow-up questions that show genuine curiosity about their thought process
-- Use the InterviewUtils functions available to add variety to your responses
-- Sometimes use phrases like "I'm curious about...", "That's interesting...", "Let me think about this..."
-- Be encouraging but specific in your feedback
-- Show enthusiasm when they demonstrate good understanding
-- Be patient and guide them step by step when they're stuck
-
-Available Tools:
-- InterviewUtils.getRandomEncouragement() - for positive reinforcement
-- InterviewUtils.getRandomHintPhrase() - for gentle guidance
-- InterviewUtils.getRandomTransition() - for smooth topic changes
-- InterviewUtils.getRandomFollowUp() - for deeper exploration
-- InterviewUtils.enhanceWithConversation() - to make responses more natural
-- InterviewUtils.addInterviewerPersonality() - to vary response patterns`
+      content: `You are a technical interviewer. Keep answers to 1–2 sentences.
+- Ask questions, avoid lecturing.
+- Do not restate the problem; the candidate can see it.
+- Focus on thought process, complexity, and trade‑offs.
+- Keep replies concise (for TTS).`
     };
 
-    const messages: ChatGPTMessage[] = [systemMessage];
-    
-    // Add conversation history
-    messages.push(...history);
-    
-    // Add current user message
-    messages.push({
-      role: 'user',
-      content: userMessage
-    });
+    // 2) Minimal problem context (no full description)
+    const problemContext: ChatGPTMessage = {
+      role: 'system',
+      content: `Problem: ${problem.title} (${problem.difficulty}).`
+    };
 
+    // 3) Rolling summary for older history + last-N window
+    const last = history.slice(-this.historyWindow);
+    const older = history.slice(0, Math.max(0, history.length - this.historyWindow));
+    if (older.length) {
+      const merged = (this.conversationSummary ? this.conversationSummary + ' ' : '') + older.map(m => `${m.role === 'assistant' ? 'AI' : 'User'}: ${m.content}`).join(' ');
+      this.conversationSummary = merged.substring(0, this.summaryMaxChars);
+    }
+
+    const messages: ChatGPTMessage[] = [systemMessage, problemContext];
+    if (this.conversationSummary) {
+      messages.push({ role: 'system', content: `Conversation summary so far: ${this.conversationSummary}` });
+    }
+    messages.push(...last);
+    messages.push({ role: 'user', content: userMessage });
     return messages;
   }
 
@@ -244,7 +257,7 @@ Please provide feedback in the following format:
       model: this.model,
       messages,
       temperature: 0.7,
-      max_tokens: 1000
+      max_tokens: 200
     };
 
     const response = await fetch(API_ENDPOINTS.OPENAI_CHAT, {

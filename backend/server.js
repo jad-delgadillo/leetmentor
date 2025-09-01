@@ -6,6 +6,7 @@ require('dotenv').config();
 // Configuration
 const PORT = process.env.PORT || 8080;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-10-01';
 
 if (!OPENAI_API_KEY) {
     console.error('❌ OPENAI_API_KEY environment variable is required');
@@ -19,21 +20,22 @@ const server = new WebSocket.Server({
     verifyClient: (info) => {
         const origin = info.origin;
         console.log(`🔍 Connection attempt from origin: ${origin || 'undefined'}`);
-        
-        // Allow Chrome extension origins, localhost, and undefined origin (for development)
+
+        // Allow Chrome extension origins, localhost, LeetCode domains, and undefined origin (development)
         if (!origin) {
             console.log('✅ Allowing connection without origin (development/direct connection)');
             return true;
         }
-        
-        const allowedOrigins = [
-            'chrome-extension://',
-            'moz-extension://',
-            'http://localhost',
-            'https://localhost'
-        ];
-        
-        const isAllowed = allowedOrigins.some(allowed => origin.startsWith(allowed));
+
+        const isAllowed = (
+            origin.startsWith('chrome-extension://') ||
+            origin.startsWith('moz-extension://') ||
+            origin.startsWith('http://localhost') ||
+            origin.startsWith('https://localhost') ||
+            origin.includes('leetcode.com') ||
+            origin.includes('leetcode.cn')
+        );
+
         console.log(`${isAllowed ? '✅' : '❌'} Origin check result: ${isAllowed}`);
         return isAllowed;
     }
@@ -41,6 +43,7 @@ const server = new WebSocket.Server({
 
 console.log(`🚀 LeetMentor WebSocket Proxy Server starting on port ${PORT}`);
 console.log(`🔑 OpenAI API Key loaded: ${OPENAI_API_KEY.substring(0, 10)}...`);
+console.log(`🧠 Realtime model: ${OPENAI_REALTIME_MODEL}`);
 
 // Track active connections
 let activeConnections = 0;
@@ -48,7 +51,7 @@ let hasActiveVoiceCalls = false;
 
 // Connection deduplication - track by origin
 const activeConnectionsByOrigin = new Map();
-const CONNECTION_LIMIT_PER_ORIGIN = 1; // Only allow 1 connection per extension
+const CONNECTION_LIMIT_PER_ORIGIN = 3; // Allow a few connections per origin to reduce churn
 
 server.on('connection', (clientWS, request) => {
     activeConnections++;
@@ -102,7 +105,8 @@ server.on('connection', (clientWS, request) => {
     const connectToOpenAI = () => {
         console.log(`⚡ ${clientId}: Connecting to OpenAI Realtime API...`);
         
-        openaiWS = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
+        const model = process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-10-01';
+        openaiWS = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`, {
             headers: {
                 'Authorization': `Bearer ${OPENAI_API_KEY}`,
                 'OpenAI-Beta': 'realtime=v1'
@@ -277,37 +281,49 @@ server.on('connection', (clientWS, request) => {
     };
 
     // Handle client messages
-    clientWS.on('message', (data) => {
+    clientWS.on('message', (data, isBinary) => {
+        let parsed = null;
         try {
-            // Try to parse as JSON for control messages
-            const message = JSON.parse(data);
-            
-            if (message.type === 'connect' && !isConnectedToOpenAI) {
+            // Convert Buffer to string for JSON messages
+            if (!isBinary) {
+                const text = typeof data === 'string' ? data : data.toString();
+                parsed = JSON.parse(text);
+            }
+
+            if (parsed && parsed.type === 'connect' && !isConnectedToOpenAI) {
+                console.log(`📡 ${clientId}: Received connect from client — connecting upstream`);
                 connectToOpenAI();
                 return;
             }
-            
-            if (message.type === 'ping') {
+
+            if (parsed && parsed.type === 'ping') {
                 clientWS.send(JSON.stringify({ type: 'pong' }));
                 return;
             }
         } catch (e) {
-            // Not JSON, probably raw audio data or OpenAI message
+            // Not JSON, likely binary audio frame
         }
 
-        // Check if this is an audio frame
-        const isAudioFrame = data.length > 100; // Binary audio data is typically larger
-        
+        // Identify audio frames robustly
+        const isAudioFrame = (
+            isBinary ||
+            (parsed && parsed.type === 'input_audio_buffer.append')
+        );
+
         // Forward messages to OpenAI with proper gating
         if (openaiWS && openaiWS.readyState === WebSocket.OPEN && isConnectedToOpenAI) {
-            // Gate audio frames until upstream is ready
+            // Gate audio frames until upstream session is ready
             if (isAudioFrame && !upstreamReady) {
                 console.log(`🚫 ${clientId}: Dropping audio frame (upstream not ready)`);
                 return;
             }
-            openaiWS.send(data);
+            if (parsed && parsed.type) {
+                console.log(`➡️  ${clientId}: Forwarding to OpenAI: ${parsed.type}`);
+            }
+            const forwardPayload = isBinary ? data : (parsed ? JSON.stringify(parsed) : data);
+            openaiWS.send(forwardPayload);
         } else if (!isConnectedToOpenAI) {
-            // Only queue non-audio messages
+            // Only queue non-audio control messages
             if (!isAudioFrame && messageQueue.length < MAX_QUEUE_SIZE) {
                 messageQueue.push(data);
                 if (messageQueue.length === 1) {

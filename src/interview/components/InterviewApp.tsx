@@ -690,8 +690,6 @@ Description: ${problem.description}`
                                 onOpenCodeEditor={openCodeEditor}
                                 onSpeechRateChange={handleSpeechRateChange}
                                 currentSpeechRate={state.speechRate}
-                                useRealtimeAPI={state.useRealtimeAPI}
-                                onToggleRealtimeAPI={toggleRealtimeAPI}
                             />
                         )}
 

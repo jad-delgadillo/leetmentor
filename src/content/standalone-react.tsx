@@ -41,6 +41,7 @@ class StandaloneReactInterviewer {
     private hasAcceptedSubmission: boolean = false;
     private isRecording: boolean = false;
     public isTyping: boolean = false;
+    public currentTranscript: string = '';
     private mediaRecorder: MediaRecorder | null = null;
     private audioChunks: Blob[] = [];
     private voiceEnabled: boolean = true;
@@ -54,17 +55,19 @@ class StandaloneReactInterviewer {
             this.voiceService.setSpeechRate(speed);
         }
         console.log(`🎵 STANDALONE REACT: Voice speed set to ${speed}x`);
-        this.showNotification(`🎵 Voice speed: ${speed}x`, 'info');
+        this.showNotification(`Voice speed: ${speed}x`, 'info');
     }
     private lastTranscriptionTime: number = 0;
     private transcriptionCooldown: number = 2000;
     private root: any = null;
     private container: HTMLElement | null = null;
-    private voiceService: VoiceService | null = null;
-    private realtimeService: RealtimeVoiceService | null = null;
-    private chatGPTService: ChatGPTService | null = null;
-    private isVoiceEnabled: boolean = false;
-    private apiKey: string = '';
+  private voiceService: VoiceService | null = null;
+  private realtimeService: RealtimeVoiceService | null = null;
+  private chatGPTService: ChatGPTService | null = null;
+  private usageTotals = { prompt: 0, completion: 0, total: 0, costUsd: 0, model: '' };
+  private isVoiceEnabled: boolean = false;
+  private apiKey: string = '';
+    private useRealtime: boolean = false; // Disable realtime by default
 
     constructor() {
         console.log('🚀 STANDALONE REACT: StandaloneAIInterviewer constructor called');
@@ -72,7 +75,7 @@ class StandaloneReactInterviewer {
         this.init();
     }
 
-    private async initializeVoiceServices() {
+  private async initializeVoiceServices() {
         try {
             console.log('🎤 Initializing voice services...');
 
@@ -88,7 +91,9 @@ class StandaloneReactInterviewer {
                         // Initialize all services
                         this.voiceService = new VoiceService();
                         this.realtimeService = new RealtimeVoiceService();
-                        this.chatGPTService = new ChatGPTService(this.apiKey, 'gpt-4');
+                        const model = configResponse.data.model || 'gpt-4o';
+                        this.chatGPTService = new ChatGPTService(this.apiKey, model);
+                        this.usageTotals.model = model;
 
                         // Configure voice service
                         this.voiceService.setApiKey(this.apiKey);
@@ -97,9 +102,14 @@ class StandaloneReactInterviewer {
 
                         // Configure realtime service
                         this.realtimeService.setApiKey(this.apiKey);
+                        if (configResponse.data.realtimeProxyUrl) {
+                            this.realtimeService.setProxyUrl(configResponse.data.realtimeProxyUrl);
+                        }
 
                         // Set up event handlers
                         this.setupVoiceEventHandlers();
+                        this.setupRealtimeEventHandlers();
+                        this.setupWindowBridge();
 
                         console.log('✅ All services initialized successfully');
                     } else {
@@ -114,43 +124,111 @@ class StandaloneReactInterviewer {
         }
     }
 
-    private setupVoiceEventHandlers() {
-        if (!this.voiceService) return;
-
-        // Speech recognition events
-        this.voiceService.onSpeechResultReceived((text, isFinal) => {
-            console.log('🎤 Speech result:', text, 'Final:', isFinal);
-            if (isFinal && text.trim()) {
-                this.handleUserMessage(text.trim());
-            }
-        });
-
-        this.voiceService.onSpeechStarted(() => {
-            console.log('🎤 Speech started');
-        });
-
-        this.voiceService.onSpeechEnded(() => {
-            console.log('🎤 Speech ended');
-        });
-
-        this.voiceService.onSpeechErrorOccurred((error) => {
-            console.error('🎤 Speech error:', error);
-            this.showNotification(`Voice error: ${error}`, 'error');
-        });
-
-        // Text-to-speech events
-        this.voiceService.onSpeakStarted(() => {
-            console.log('🔊 AI started speaking');
-            this.isTyping = true;
-            this.forceUpdate();
-        });
-
-        this.voiceService.onSpeakEnded(() => {
-            console.log('🔊 AI finished speaking');
-            this.isTyping = false;
-            this.forceUpdate();
-        });
+    // Bridge page -> content script for quick testing from page console
+    private setupWindowBridge() {
+        try {
+            window.addEventListener('message', (event) => {
+                const data = (event as MessageEvent<any>).data;
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'LEETMENTOR_RT_TEST') {
+                    const text = typeof data.text === 'string' ? data.text : 'hello from bridge';
+                    console.log('🔧 Realtime bridge: sending test text:', text);
+                    if (this.realtimeService) {
+                        try { this.realtimeService.sendTextMessage(text); } catch (e) { console.error('Bridge send failed:', e); }
+                    }
+                }
+            });
+            console.log('🔧 Realtime bridge initialized (window.postMessage)');
+        } catch (e) {
+            console.warn('Bridge init failed:', e);
+        }
     }
+
+  private setupVoiceEventHandlers() {
+    if (!this.voiceService) return;
+
+    // Speech recognition events
+    this.voiceService.onSpeechResultReceived((text, isFinal) => {
+      console.log('🎤 Speech result:', text, 'Final:', isFinal);
+      if (isFinal && text.trim()) {
+        this.currentTranscript = '';
+        this.forceUpdate();
+        this.handleUserMessage(text.trim());
+      } else {
+        this.currentTranscript = text;
+        this.forceUpdate();
+      }
+    });
+
+    this.voiceService.onSpeechStarted(() => {
+      console.log('🎤 Speech started');
+    });
+
+    this.voiceService.onSpeechEnded(() => {
+      console.log('🎤 Speech ended');
+      this.currentTranscript = '';
+      this.forceUpdate();
+    });
+
+    this.voiceService.onSpeechErrorOccurred((error) => {
+      console.error('🎤 Speech error:', error);
+      this.showNotification(`Voice error: ${error}`, 'error');
+    });
+
+    // Text-to-speech events
+    this.voiceService.onSpeakStarted(() => {
+      console.log('🔊 AI started speaking');
+      this.isTyping = true;
+      this.forceUpdate();
+    });
+
+    this.voiceService.onSpeakEnded(() => {
+      console.log('🔊 AI finished speaking');
+      this.isTyping = false;
+      this.forceUpdate();
+    });
+  }
+
+  private setupRealtimeEventHandlers() {
+    if (!this.realtimeService) return;
+
+    // Realtime streaming events
+    this.realtimeService.setEventHandlers({
+      onSpeechResult: (text, isFinal) => {
+        console.log('🎤 Realtime transcript:', text, 'final:', isFinal);
+        if (isFinal && text.trim()) {
+          this.currentTranscript = '';
+          this.forceUpdate();
+          this.handleUserMessage(text.trim());
+        } else {
+          this.currentTranscript = text;
+          this.forceUpdate();
+        }
+      },
+      onSpeechStart: () => {
+        console.log('🎤 Realtime listening started');
+      },
+      onSpeechEnd: () => {
+        console.log('🎤 Realtime listening ended');
+        this.currentTranscript = '';
+        this.forceUpdate();
+      },
+      onSpeakStart: () => {
+        console.log('🔊 Realtime AI speaking');
+        this.isTyping = true;
+        this.forceUpdate();
+      },
+      onSpeakEnd: () => {
+        console.log('🔊 Realtime AI finished');
+        this.isTyping = false;
+        this.forceUpdate();
+      },
+      onSpeechError: (error) => {
+        console.error('🎤 Realtime error:', error);
+        this.showNotification(`Realtime error: ${error}`, 'error');
+      }
+    });
+  }
 
     private async init() {
         console.log('🚀 STANDALONE REACT: Initializing...');
@@ -169,6 +247,20 @@ class StandaloneReactInterviewer {
 
         // Handle navigation changes (LeetCode is SPA)
         this.setupNavigationWatcher();
+    }
+
+    public getVoiceMode(): 'traditional' | 'realtime' {
+        return this.useRealtime ? 'realtime' : 'traditional';
+    }
+
+    public toggleVoiceMode() {
+        this.useRealtime = !this.useRealtime;
+        this.showNotification(this.useRealtime ? 'Realtime voice enabled' : 'Traditional voice enabled', 'info');
+        try {
+            this.stopVoiceInput();
+            this.skipVoiceResponse();
+        } catch {}
+        this.forceUpdate();
     }
 
     private start() {
@@ -822,16 +914,21 @@ You can return the answer in any order.`,
             this.forceUpdate();
 
             // Then speak the response (if voice is enabled)
-            if (this.voiceService && this.isVoiceEnabled) {
+            if (this.isVoiceEnabled) {
                 try {
-                    const voiceSettings = {
-                        enabled: true,
-                        language: 'en-US',
-                        rate: 1.0,
-                        pitch: 1.0,
-                        volume: 1.0
-                    };
-                    await this.voiceService.speak(aiResponse, voiceSettings);
+                    if (this.useRealtime && this.realtimeService) {
+                        // Stream via Realtime API (audio will play as it streams)
+                        this.realtimeService.sendTextMessage(aiResponse);
+                    } else if (this.voiceService) {
+                        const voiceSettings = {
+                            enabled: true,
+                            language: 'en-US',
+                            rate: 1.0,
+                            pitch: 1.0,
+                            volume: 1.0
+                        };
+                        await this.voiceService.speak(aiResponse, voiceSettings);
+                    }
                 } catch (error) {
                     console.error('🔊 Failed to speak AI response:', error);
                 }
@@ -880,19 +977,28 @@ You can return the answer in any order.`,
     }
 
     public async startVoiceInput() {
-        if (!this.voiceService || !this.isVoiceEnabled) {
-            throw new Error('Voice service not available or not enabled');
+        if (!this.isVoiceEnabled) {
+            throw new Error('Voice not enabled');
         }
 
-        try {
-            const speechSettings = {
-                enabled: true,
-                language: 'en-US',
-                continuous: false,
-                interimResults: true
-            };
+        const speechSettings = {
+            enabled: true,
+            language: 'en-US',
+            continuous: false,
+            interimResults: true
+        };
 
-            await this.voiceService.startListening(speechSettings);
+        try {
+            if (this.useRealtime && this.realtimeService) {
+                if (!this.realtimeService.getIsConnected()) {
+                    await this.realtimeService.connect();
+                }
+                await this.realtimeService.startListening(speechSettings);
+            } else if (this.voiceService) {
+                await this.voiceService.startListening(speechSettings);
+            } else {
+                throw new Error('No voice service available');
+            }
             console.log('🎤 Voice input started successfully');
         } catch (error) {
             console.error('🎤 Failed to start voice input:', error);
@@ -901,15 +1007,19 @@ You can return the answer in any order.`,
     }
 
     public stopVoiceInput() {
-        if (this.voiceService) {
+        if (this.useRealtime && this.realtimeService) {
+            this.realtimeService.stopListening();
+        } else if (this.voiceService) {
             this.voiceService.stopListening();
-            console.log('🎤 Voice input stopped');
         }
+        console.log('🎤 Voice input stopped');
     }
 
     public skipVoiceResponse() {
         console.log('⏭️ STANDALONE REACT: Skipping voice response...');
-        if (this.voiceService) {
+        if (this.useRealtime && this.realtimeService) {
+            this.realtimeService.stopSpeaking();
+        } else if (this.voiceService) {
             this.voiceService.stopSpeaking();
         }
         // Note: Typing animation is managed by React component state, not class property
@@ -960,6 +1070,16 @@ You can return the answer in any order.`,
                 userMessage
             );
 
+            // Update usage totals if available
+            if (this.chatGPTService && this.chatGPTService.lastUsage) {
+                const t = this.chatGPTService.totals;
+                this.usageTotals.prompt = t.prompt;
+                this.usageTotals.completion = t.completion;
+                this.usageTotals.total = t.total;
+                this.usageTotals.costUsd = t.costUsd;
+                this.forceUpdate();
+            }
+
             console.log('🤖 AI Response:', aiResponse);
             return aiResponse;
 
@@ -974,11 +1094,11 @@ You can return the answer in any order.`,
         const notification = document.createElement('div');
 
         const colors = {
-            success: { bg: '#22c55e', border: '#16a34a', icon: '✅' },
-            error: { bg: '#ef4444', border: '#dc2626', icon: '❌' },
-            warning: { bg: '#f59e0b', border: '#d97706', icon: '⚠️' },
-            info: { bg: '#3b82f6', border: '#2563eb', icon: 'ℹ️' }
-        };
+            success: { bg: '#22c55e', border: '#16a34a' },
+            error: { bg: '#ef4444', border: '#dc2626' },
+            warning: { bg: '#f59e0b', border: '#d97706' },
+            info: { bg: '#3b82f6', border: '#2563eb' }
+        } as const;
 
         const color = colors[type];
 
@@ -1006,7 +1126,7 @@ You can return the answer in any order.`,
     `;
 
         notification.innerHTML = `
-      <span style="font-size: 16px;">${color.icon}</span>
+      <span style="display:inline-flex;align-items:center;justify-content:center">${this.getNotificationIcon(type)}</span>
       <span>${message}</span>
     `;
 
@@ -1027,6 +1147,21 @@ You can return the answer in any order.`,
                 }
             }, 400);
         }, 4000);
+    }
+
+    private getNotificationIcon(type: 'success' | 'error' | 'warning' | 'info'): string {
+        const base = 'width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+        switch (type) {
+            case 'success':
+                return `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
+            case 'error':
+                return `<svg ${base}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
+            case 'warning':
+                return `<svg ${base}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+            case 'info':
+            default:
+                return `<svg ${base}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+        }
     }
 
     // ... rest of the methods (setupSubmissionMonitor, etc.) would go here
@@ -1051,6 +1186,8 @@ const StandaloneInterfaceReactWrapper: React.FC<StandaloneInterfaceReactWrapperP
     // Use the interviewer's isTyping state instead of local state
     const isTyping = interviewer.isTyping || false;
     const [isListening, setIsListening] = useState(false);
+    const currentTranscript = interviewer.currentTranscript;
+    const voiceMode = interviewer.getVoiceMode();
 
     const handleSendMessage = useCallback((message: string) => {
         interviewer.isTyping = true;
@@ -1081,11 +1218,11 @@ const StandaloneInterfaceReactWrapper: React.FC<StandaloneInterfaceReactWrapperP
 
         try {
             await interviewer.startVoiceInput();
-            interviewer.showNotification('🎤 Voice input started!', 'success');
+            interviewer.showNotification('Voice input started!', 'success');
         } catch (error) {
             console.error('Voice input failed:', error);
             setIsListening(false);
-            interviewer.showNotification('🎤 Voice input failed', 'error');
+            interviewer.showNotification('Voice input failed', 'error');
         }
     }, [interviewer]);
 
@@ -1093,7 +1230,7 @@ const StandaloneInterfaceReactWrapper: React.FC<StandaloneInterfaceReactWrapperP
         console.log('🎤 Stopping voice input...');
         setIsListening(false);
         interviewer.stopVoiceInput();
-        interviewer.showNotification('🎤 Voice input stopped', 'info');
+        interviewer.showNotification('Voice input stopped', 'info');
     }, [interviewer]);
 
     const handleSkipVoice = useCallback(() => {
@@ -1101,12 +1238,16 @@ const StandaloneInterfaceReactWrapper: React.FC<StandaloneInterfaceReactWrapperP
         interviewer.isTyping = false;
         interviewer.forceUpdate();
         interviewer.skipVoiceResponse();
-        interviewer.showNotification('⏭️ Voice response skipped', 'info');
+        interviewer.showNotification('Voice response skipped', 'info');
     }, [interviewer]);
 
     const handleSpeedChange = useCallback((speed: number) => {
         console.log(`🎵 Speed change requested: ${speed}x`);
         interviewer.setVoiceSpeed(speed);
+    }, [interviewer]);
+
+    const handleToggleVoiceMode = useCallback(() => {
+        interviewer.toggleVoiceMode();
     }, [interviewer]);
 
     return (
@@ -1126,6 +1267,9 @@ const StandaloneInterfaceReactWrapper: React.FC<StandaloneInterfaceReactWrapperP
             isInterviewActive={isInterviewActive}
             isTyping={isTyping}
             isListening={isListening}
+            currentTranscript={currentTranscript}
+            voiceMode={voiceMode}
+            usageTotals={(interviewer as any).usageTotals}
         />
     );
 };

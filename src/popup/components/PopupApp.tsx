@@ -77,7 +77,7 @@ const PopupApp: React.FC = () => {
 
     const getDefaultConfig = (): ExtensionConfig => ({
         apiKey: '',
-        model: 'gpt-4',
+        model: 'gpt-4o',
         voice: {
             enabled: true,
             language: 'en-US',
