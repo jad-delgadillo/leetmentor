@@ -148,10 +148,9 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- 📧 Email: support@leetmentor.dev
 - 🐛 Issues: [GitHub Issues](https://github.com/username/leetmentor/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/username/leetmentor/discussions)
 
 ---
 
-**Happy interviewing! 🚀**-01
+**Happy interviewing! 🚀**
