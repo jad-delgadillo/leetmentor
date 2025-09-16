@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { LeetCodeProblem } from '../../types/leetcode';
 import { ExtensionConfig } from '../../types/api';
 import { ArrowLeft, Play, Mic, Volume2, Settings as SettingsIcon } from 'lucide-react';
+import { useEffect } from 'react';
 import { INTERVIEW_DIFFICULTY_LEVELS } from '../../shared/constants';
 
 interface InterviewSettingsProps {
@@ -20,6 +21,7 @@ const InterviewSettings: React.FC<InterviewSettingsProps> = ({
     onBack
 }) => {
     const [tempConfig, setTempConfig] = useState(config);
+    const [usageTotals, setUsageTotals] = useState<{ prompt: number; completion: number; total: number; costUsd: number; model?: string; ts?: number } | null>(null);
 
     const handleConfigChange = (key: keyof ExtensionConfig, value: any) => {
         const newConfig = { ...tempConfig, [key]: value };
@@ -33,6 +35,15 @@ const InterviewSettings: React.FC<InterviewSettingsProps> = ({
         setTempConfig(newConfig);
         onUpdateConfig({ voice: newVoiceConfig });
     };
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await chrome.storage.sync.get(['leetmentor_usage_totals']);
+                if (data.leetmentor_usage_totals) setUsageTotals(data.leetmentor_usage_totals);
+            } catch {}
+        })();
+    }, []);
 
     return (
         <div className="p-6 space-y-6">
@@ -210,6 +221,19 @@ const InterviewSettings: React.FC<InterviewSettingsProps> = ({
                 <Play className="w-5 h-5" />
                 <span>Start Interview</span>
             </button>
+
+            {/* Recent Usage Totals */}
+            {usageTotals && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div className="text-sm text-gray-700 font-medium">Recent Usage</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                        Tokens: {usageTotals.total} (prompt {usageTotals.prompt} / completion {usageTotals.completion}) · Cost: ${usageTotals.costUsd.toFixed(2)}{usageTotals.model ? ` · Model: ${usageTotals.model}` : ''}
+                    </div>
+                    {usageTotals.ts && (
+                        <div className="text-xs text-gray-400 mt-1">Updated {new Date(usageTotals.ts).toLocaleString()}</div>
+                    )}
+                </div>
+            )}
 
             {/* Quick Preview */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">

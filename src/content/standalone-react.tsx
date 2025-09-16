@@ -93,6 +93,9 @@ class StandaloneReactInterviewer {
                         this.realtimeService = new RealtimeVoiceService();
                         const model = configResponse.data.model || 'gpt-4o';
                         this.chatGPTService = new ChatGPTService(this.apiKey, model);
+                        if (configResponse.data.historyWindow) {
+                            this.chatGPTService.setHistoryWindow(configResponse.data.historyWindow);
+                        }
                         this.usageTotals.model = model;
 
                         // Configure voice service

@@ -10,6 +10,7 @@ interface InterviewHeaderProps {
     onPause: () => void;
     onResume: () => void;
     onEnd: () => void;
+    usage?: { totalTokens: number; costUsd: number; model?: string };
 }
 
 const InterviewHeader: React.FC<InterviewHeaderProps> = ({
@@ -18,7 +19,8 @@ const InterviewHeader: React.FC<InterviewHeaderProps> = ({
     status,
     onPause,
     onResume,
-    onEnd
+    onEnd,
+    usage
 }) => {
     const [elapsedTime, setElapsedTime] = React.useState(0);
 
@@ -86,8 +88,16 @@ const InterviewHeader: React.FC<InterviewHeaderProps> = ({
                 </div>
             </div>
 
-            {/* Right Section - Controls */}
+            {/* Right Section - Controls + Usage */}
             <div className="flex items-center space-x-2">
+                {usage && (
+                    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-200 text-gray-700 mr-2" title={usage.model ? `Model: ${usage.model}` : undefined}>
+                        <span className="text-xs font-medium">Cost:</span>
+                        <span className="text-sm font-semibold">${usage.costUsd.toFixed(2)}</span>
+                        <span className="text-gray-300">·</span>
+                        <span className="text-xs">Tokens: {usage.totalTokens}</span>
+                    </div>
+                )}
                 {status === 'active' && (
                     <button
                         onClick={onPause}

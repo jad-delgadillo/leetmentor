@@ -259,13 +259,20 @@ class BackgroundService {
       // Concise prompt + last-N history window
       const conciseSystem = `You are a technical interviewer. Keep answers 1–2 sentences. Ask questions, avoid lecturing. Do not restate the problem. Focus on thought process, complexity, trade‑offs.`;
       const minimalProblem = `Problem: ${problem?.title || 'Unknown'} (${problem?.difficulty || 'Unknown'}). Phase: ${interviewPhase}`;
-      const lastN = (conversationHistory || []).slice(-8);
+      const phaseInstruction = interviewPhase === 'implementation'
+        ? 'If the approach is clear, explicitly ask the candidate to implement the solution now in the LeetCode code editor. Keep the prompt short.'
+        : interviewPhase === 'testing-review'
+          ? 'Do not ask for implementation. Focus on analysis, complexity, optimizations, and edge cases.'
+          : '';
+      const historyN = (config.historyWindow || 8);
+      const lastN = (conversationHistory || []).slice(-historyN);
       const messages = [
         { role: 'system', content: conciseSystem },
         { role: 'system', content: minimalProblem },
+        phaseInstruction ? { role: 'system', content: phaseInstruction } : undefined,
         ...lastN,
         { role: 'user', content: message }
-      ];
+      ].filter(Boolean) as any;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -467,7 +474,7 @@ Difficulty: ${problem?.difficulty || 'Unknown'}`
         content: `Problem: ${problem.title} (${problem.difficulty}). Status: ${hasAcceptedSubmission ? 'ACCEPTED' : 'PENDING'}.`
       } as const;
 
-      const lastN = (conversationHistory || []).slice(-8);
+      const lastN = (conversationHistory || []).slice(-(config.historyWindow || 8));
       const messages = [
         conciseSystem,
         minimalProblem,

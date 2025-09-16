@@ -53,4 +53,5 @@ export interface ExtensionConfig {
   interviewMode: 'beginner' | 'intermediate' | 'advanced';
   practiceAreas: string[];
   realtimeProxyUrl?: string;
+  historyWindow?: number; // last-N messages to send each turn
 }

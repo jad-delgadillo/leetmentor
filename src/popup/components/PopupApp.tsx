@@ -92,7 +92,8 @@ const PopupApp: React.FC = () => {
             interimResults: true
         },
         interviewMode: 'intermediate',
-        practiceAreas: ['algorithms', 'data-structures']
+        practiceAreas: ['algorithms', 'data-structures'],
+        historyWindow: 8
     });
 
     const updateConfig = async (newConfig: Partial<ExtensionConfig>) => {

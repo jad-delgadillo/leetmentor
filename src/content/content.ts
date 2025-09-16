@@ -24,6 +24,9 @@ class LeetCodeDetector {
   private isSpeaking: boolean = false;
   private useRealtimeAPI: boolean = false;
   private currentTranscript: string = '';
+  private hasAcceptedSubmission: boolean = false;
+  private lastSubmissionKey: string | null = null;
+  private lastSubmissionAt: number = 0;
 
   constructor() {
     console.log('🔥 DEBUG: LeetCodeDetector constructor called!');
@@ -1343,6 +1346,14 @@ class LeetCodeDetector {
     chatContainer.appendChild(inputArea);
     chatContainer.appendChild(voiceControlsArea);
 
+    // Submission monitor (starts DOM + network monitoring)
+    try {
+      const monitor = this.createSubmissionMonitor();
+      chatContainer.appendChild(monitor);
+    } catch (e) {
+      console.warn('LeetMentor: Failed to create submission monitor', e);
+    }
+
     return chatContainer;
   }
 
@@ -1375,6 +1386,20 @@ class LeetCodeDetector {
 
     // Start monitoring submissions
     this.startSubmissionMonitoring();
+    this.setupNetworkSubmissionMonitor();
+    this.injectNetworkHookScript();
+    this.addNetworkMessageListener();
+
+    // Manual override button (fallback)
+    const manualRow = document.createElement('div');
+    manualRow.style.cssText = 'margin-top:8px; display:flex; gap:8px; align-items:center;';
+    const markAccepted = document.createElement('button');
+    markAccepted.textContent = 'Mark Accepted';
+    markAccepted.title = 'Manually mark this submission as accepted';
+    markAccepted.style.cssText = 'background:#10b981; color:white; border:none; border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer;';
+    markAccepted.addEventListener('click', () => this.markAcceptedManually());
+    manualRow.appendChild(markAccepted);
+    monitorContainer.appendChild(manualRow);
 
     return monitorContainer;
   }
@@ -1844,7 +1869,8 @@ class LeetCodeDetector {
         data: {
           problem: this.problem,
           message: content,
-          config: this.embeddedConfig
+          config: this.embeddedConfig,
+          interviewPhase: this.hasAcceptedSubmission ? 'testing-review' : 'implementation'
         }
       });
 
@@ -2007,6 +2033,162 @@ class LeetCodeDetector {
     setInterval(() => {
       this.checkForSubmissionResults();
     }, 2000);
+  }
+
+  private setupNetworkSubmissionMonitor() {
+    try {
+      // Note: Content scripts run in an isolated world; patching fetch/XHR here won't observe page traffic.
+      // We inject a page-context script to hook network calls and post messages back.
+      (window as any).leetmentorDetector = this; // for debugging only
+    } catch (e) {
+      console.warn('LeetMentor: Failed to setup network submission monitor', e);
+    }
+  }
+
+  private injectNetworkHookScript() {
+    try {
+      if (document.getElementById('leetmentor-network-hook')) return;
+      const script = document.createElement('script');
+      script.id = 'leetmentor-network-hook';
+      script.type = 'text/javascript';
+      script.textContent = `(() => {
+        if (window.__leetmentorHooked) return; window.__leetmentorHooked = true;
+        const post = (payload) => {
+          try { window.postMessage({ source: 'leetmentor', type: 'submission_result', payload }, '*'); } catch {}
+        };
+        const isSubmissionURL = (url) => {
+          const u = String(url).toLowerCase();
+          return u.includes('/submissions') || u.includes('/submit') || u.includes('/judge') || u.includes('/graphql');
+        };
+        // fetch hook
+        const ofetch = window.fetch; if (typeof ofetch === 'function') {
+          window.fetch = async function(input, init) {
+            const res = await ofetch(input, init);
+            try {
+              const url = typeof input === 'string' ? input : (input && input.url) || '';
+              if (isSubmissionURL(url)) {
+                const clone = res.clone();
+                const ct = clone.headers.get('content-type') || '';
+                if (ct.includes('application/json')) {
+                  const data = await clone.json();
+                  post({ url, json: data });
+                }
+              }
+            } catch {}
+            return res;
+          }
+        }
+        // XHR hook
+        const xp = XMLHttpRequest.prototype;
+        if (!xp.__leetmentorHooked) {
+          xp.__leetmentorHooked = true;
+          const open = xp.open; const send = xp.send;
+          xp.open = function(m,u){ this.__leetmentorURL = u; return open.apply(this, arguments); };
+          xp.send = function(b){
+            this.addEventListener('load', function(){
+              try {
+                const url = this.__leetmentorURL || this.responseURL || '';
+                if (isSubmissionURL(url)) {
+                  const ct = this.getResponseHeader('content-type') || '';
+                  if (ct.includes('application/json')) {
+                    const json = JSON.parse(this.responseText);
+                    post({ url, json });
+                  }
+                }
+              } catch {}
+            });
+            return send.apply(this, arguments);
+          };
+        }
+      })();`;
+      (document.head || document.documentElement).appendChild(script);
+    } catch (e) {
+      console.warn('LeetMentor: Failed to inject network hook script', e);
+    }
+  }
+
+  private addNetworkMessageListener() {
+    const handler = (event: MessageEvent) => {
+      try {
+        if (event.source !== window) return;
+        const data = (event.data || {}) as any;
+        if (data && data.source === 'leetmentor' && data.type === 'submission_result' && data.payload) {
+          const { url, json } = data.payload;
+          this.handleSubmissionJsonPayload(json, url);
+        }
+      } catch {}
+    };
+    window.addEventListener('message', handler);
+  }
+
+  public isSubmissionURL(url: string): boolean {
+    const u = url.toLowerCase();
+    return u.includes('/submissions') || u.includes('/submit') || u.includes('/judge') || u.includes('/graphql');
+  }
+
+  public handleSubmissionJsonPayload(json: any, url: string) {
+    try {
+      // Common LeetCode fields
+      const msg = (json?.status_msg || json?.data?.submitRun?.status_msg || json?.data?.checkSubmissionResult?.status_msg || '').toLowerCase();
+      const state = (json?.state || json?.data?.checkSubmissionResult?.state || '').toLowerCase();
+      const runSuccess = !!(json?.run_success);
+
+      let normalized = '';
+      let accepted = false;
+      if (msg) normalized = msg;
+      else if (state) normalized = state;
+      else if (runSuccess) normalized = 'accepted';
+
+      if (!normalized) return;
+      accepted = normalized.includes('accept');
+
+      const key = `${accepted ? 'A' : 'N'}:${normalized}`;
+      const now = Date.now();
+      if (this.lastSubmissionKey === key && now - this.lastSubmissionAt < 1500) {
+        return; // debounce duplicate
+      }
+      this.lastSubmissionKey = key;
+      this.lastSubmissionAt = now;
+
+      // Create a synthetic element-like handling
+      this.onSubmissionDetected(accepted, normalized || 'submission result detected');
+    } catch {}
+  }
+
+  private onSubmissionDetected(isAccepted: boolean, text: string) {
+    // Update internal flag
+    if (isAccepted) this.hasAcceptedSubmission = true;
+
+    // Persist last submission for other contexts if needed
+    try {
+      const slug = this.problem?.titleSlug || '';
+      chrome.storage.sync.set({ leetmentor_last_submission: { slug, accepted: isAccepted, text, ts: Date.now() } });
+    } catch {}
+
+    // Update status UI
+    const statusElement = document.getElementById('leetmentor-submission-status');
+    if (statusElement) {
+      const resultType = isAccepted ? 'Accepted ✅' : 'Result Detected';
+      statusElement.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Submission Result: ${resultType}
+      `;
+      statusElement.style.color = isAccepted ? '#16a34a' : '#64748b';
+    }
+
+    const messagesArea = document.getElementById('leetmentor-messages');
+    if (messagesArea) {
+      const resultMessage = isAccepted
+        ? "Great! Your solution was accepted. Let's discuss complexity, optimizations, and edge cases."
+        : `Your submission result: ${text}. Let's analyze what might need to be improved.`;
+      this.addMessageToChat(messagesArea, resultMessage, 'ai');
+    }
+  }
+
+  private markAcceptedManually() {
+    this.onSubmissionDetected(true, 'manually marked as accepted');
   }
 
   private isSubmissionResult(element: Element): boolean {

@@ -5,7 +5,7 @@ import { VoiceService } from '../../shared/voice-service';
 import { RealtimeVoiceService } from '../../shared/realtime-voice-service';
 import { ChatGPTService } from '../../shared/chatgpt-service';
 import { generateId, sendMessage } from '../../shared/utils';
-import { INTERVIEW_PROMPTS } from '../../shared/constants';
+import { INTERVIEW_PROMPTS, MODEL_PRICING_USD_PER_1K } from '../../shared/constants';
 
 import InterviewHeader from './InterviewHeader';
 import ProblemPanel from './ProblemPanel';
@@ -33,6 +33,8 @@ interface InterviewState {
     codeLanguage: string;
     speechRate: number;
     useRealtimeAPI: boolean;
+    usageTotals?: { prompt: number; completion: number; total: number; costUsd: number; model?: string };
+    lastUsage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; costUsd?: number };
 }
 
 const InterviewApp: React.FC = () => {
@@ -135,6 +137,7 @@ const InterviewApp: React.FC = () => {
 
             // Initialize ChatGPT service
             const chatGPT = new ChatGPTService(config.apiKey, config.model);
+            if (config.historyWindow) chatGPT.setHistoryWindow(config.historyWindow);
             setChatService(chatGPT);
 
             // Configure voice service with OpenAI API key for natural voices and better accent recognition
@@ -322,6 +325,28 @@ Description: ${problem.description}`
                     updatedChatHistory,
                     content
                 );
+
+                // Update usage telemetry
+                const lastU = chatService.lastUsage || null;
+                const totals = chatService.totals;
+                setState(prev => ({
+                    ...prev,
+                    usageTotals: { prompt: totals.prompt, completion: totals.completion, total: totals.total, costUsd: totals.costUsd, model: state.config?.model },
+                    lastUsage: lastU ? { ...lastU, costUsd: ((lastU.prompt_tokens/1000) *  ((MODEL_PRICING_USD_PER_1K as any)[state.config?.model || 'gpt-4o']?.input || 0) + (lastU.completion_tokens/1000) * ((MODEL_PRICING_USD_PER_1K as any)[state.config?.model || 'gpt-4o']?.output || 0)) } : undefined
+                }));
+
+                try {
+                    await chrome.storage.sync.set({
+                        leetmentor_usage_totals: {
+                            prompt: totals.prompt,
+                            completion: totals.completion,
+                            total: totals.total,
+                            costUsd: totals.costUsd,
+                            model: state.config?.model || 'gpt-4o',
+                            ts: Date.now()
+                        }
+                    });
+                } catch {}
 
                 // Add AI message
                 const aiMessage: InterviewMessage = {
@@ -657,6 +682,7 @@ Description: ${problem.description}`
                 onPause={pauseInterview}
                 onResume={resumeInterview}
                 onEnd={endInterview}
+                usage={state.usageTotals ? { totalTokens: state.usageTotals.total, costUsd: state.usageTotals.costUsd, model: state.usageTotals.model } : undefined}
             />
 
             <div className="flex-1 flex overflow-hidden">
@@ -677,6 +703,18 @@ Description: ${problem.description}`
                                 onSendMessage={handleUserMessage}
                             />
                         </div>
+
+                        {/* Per-turn token meter */}
+                        {state.lastUsage && (
+                            <div className="px-4 py-2 text-xs text-gray-500 flex items-center justify-between border-t border-gray-200 bg-white">
+                                <div>
+                                    Last turn: prompt {state.lastUsage.prompt_tokens}, completion {state.lastUsage.completion_tokens}, total {state.lastUsage.total_tokens}
+                                </div>
+                                {typeof state.lastUsage.costUsd === 'number' && (
+                                    <div>~${state.lastUsage.costUsd.toFixed(3)}</div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Voice Controls */}
                         {state.config?.voice.enabled && (

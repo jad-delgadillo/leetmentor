@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ExtensionConfig } from '../../types/api';
 import { ArrowLeft, Save, Key, TestTube, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 import { isValidOpenAIKey } from '../../shared/utils';
-import { CHATGPT_MODELS, VOICE_LANGUAGES } from '../../shared/constants';
+import { CHATGPT_MODELS, VOICE_LANGUAGES, MODEL_PRICING_USD_PER_1K } from '../../shared/constants';
 
 interface SettingsScreenProps {
     config: ExtensionConfig;
@@ -185,8 +185,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
                             ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                            GPT-4 provides better interview quality but costs more per request
+                            Approx. per 1k tokens — input: ${((MODEL_PRICING_USD_PER_1K as any)[tempConfig.model]?.input ?? 0).toFixed(3)} USD, output: ${((MODEL_PRICING_USD_PER_1K as any)[tempConfig.model]?.output ?? 0).toFixed(3)} USD
                         </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Conversation Window Size (last-N turns)
+                        </label>
+                        <select
+                            value={String(tempConfig.historyWindow ?? 8)}
+                            onChange={(e) => handleConfigChange('historyWindow', parseInt(e.target.value, 10))}
+                            className="input"
+                        >
+                            {[6,8,10,12].map(n => (
+                                <option key={n} value={n}>{n}</option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Lower values reduce token usage; 8 is a good balance.</p>
                     </div>
                 </div>
             </div>

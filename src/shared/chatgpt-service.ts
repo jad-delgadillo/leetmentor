@@ -299,4 +299,16 @@ Please provide feedback in the following format:
   setModel(model: string): void {
     this.model = model;
   }
+
+  setHistoryWindow(n: number): void {
+    if (typeof n === 'number' && n >= 2 && n <= 20) {
+      this.historyWindow = Math.floor(n);
+    }
+  }
+
+  setSummaryMaxChars(chars: number): void {
+    if (typeof chars === 'number' && chars >= 200 && chars <= 4000) {
+      this.summaryMaxChars = Math.floor(chars);
+    }
+  }
 }
